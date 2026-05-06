@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fick Cardiac Output Calculator</title>
+  <meta name="description" content="Calculate cardiac output, cardiac index, and stroke volume using Fick's formula. Supports camera-based OCR for automatic data entry." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="ocr.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <div class="bg-orb orb-3"></div>
+
+  <!-- OCR Modal -->
+  <div class="ocr-overlay" id="ocr-overlay">
+    <div class="ocr-modal">
+      <div class="ocr-modal-header">
+        <div class="ocr-modal-title">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/></svg>
+          Scan Reports / Lab Values
+        </div>
+        <button class="ocr-close" id="ocr-close">✕</button>
+      </div>
+
+      <div class="ocr-body">
+        <!-- Step 1: Image Queue -->
+        <div class="ocr-step" id="ocr-step-1">
+          <p class="ocr-hint">Add one or more images — lab reports, ABG printouts, Epic flowsheet screenshots. OCR runs entirely on your device.</p>
+
+          <input type="file" id="ocr-file-input" accept="image/*" style="display:none" />
+          <div class="ocr-capture-buttons">
+            <button class="ocr-cam-btn" id="ocr-camera-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              Take Photo
+            </button>
+            <button class="ocr-upload-btn" id="ocr-upload-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Upload Image
+            </button>
+          </div>
+
+          <div class="ocr-queue" id="ocr-queue" style="display:none">
+            <div class="ocr-queue-header">
+              <span class="ocr-queue-label">Images queued</span>
+              <span class="ocr-queue-count" id="ocr-queue-count"></span>
+            </div>
+            <div class="ocr-queue-list" id="ocr-queue-list"></div>
+          </div>
+
+          <button class="ocr-scan-all-btn" id="ocr-scan-all-btn" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Scan All Images
+          </button>
+        </div>
+
+        <!-- Step 2: Processing -->
+        <div class="ocr-step" id="ocr-step-2" style="display:none">
+          <div class="ocr-progress-wrap">
+            <div class="ocr-spinner"></div>
+            <p class="ocr-progress-label" id="ocr-progress-label">Initializing OCR engine…</p>
+            <div class="ocr-progress-bar-wrap">
+              <div class="ocr-progress-bar" id="ocr-progress-bar"></div>
+            </div>
+            <p class="ocr-batch-status" id="ocr-batch-status"></p>
+            <p class="ocr-progress-note">Running entirely on your device — no data sent anywhere.</p>
+          </div>
+        </div>
+
+        <!-- Step 3: Review & Conflict Resolution -->
+        <div class="ocr-step" id="ocr-step-3" style="display:none">
+          <p class="ocr-hint">Review detected values. Fields marked <span class="conflict-badge-inline">CONFLICT</span> have differing values from multiple images — select the correct one.</p>
+          <!-- Multi-column resolved info banner -->
+          <div class="ocr-multicol-warning" id="ocr-multicol-warning" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span class="ocr-warning-text"></span>
+          </div>
+          <div class="ocr-fields" id="ocr-fields"></div>
+          <div class="ocr-no-match" id="ocr-no-match" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            No recognizable values were found. Try clearer images or enter values manually.
+          </div>
+          <div class="ocr-actions">
+            <button class="ocr-retry-btn" id="ocr-retry-btn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.93"/></svg>
+              Add More / Rescan
+            </button>
+            <button class="ocr-apply-btn" id="ocr-apply-btn">Apply to Calculator</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-wrapper">
+    <header class="header">
+      <div class="header-inner">
+        <div class="header-brand">
+          <div class="brand-icon">
+            <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M20 6C12.268 6 6 12.268 6 20s6.268 14 14 14 14-6.268 14-14S27.732 6 20 6z" fill="url(#grad1)" opacity="0.2"/>
+              <path d="M8 22l4-8 4 12 4-16 4 12 4-6 4 4" stroke="url(#grad2)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <defs>
+                <linearGradient id="grad1" x1="6" y1="6" x2="34" y2="34"><stop stop-color="#818cf8"/><stop offset="1" stop-color="#c084fc"/></linearGradient>
+                <linearGradient id="grad2" x1="8" y1="14" x2="32" y2="26"><stop stop-color="#818cf8"/><stop offset="1" stop-color="#c084fc"/></linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div>
+            <h1 class="brand-title">FickCalc</h1>
+            <p class="brand-subtitle">Cardiac Output Estimator</p>
+          </div>
+        </div>
+        <div class="header-right">
+          <button class="ocr-launch-btn" id="ocr-launch-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span class="ocr-btn-text">Scan Report</span>
+          </button>
+          <div class="header-badge desktop-only">
+            <span class="badge-dot"></span>
+            Clinical Tool
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main-content">
+      <section class="hero desktop-only">
+        <h2 class="hero-title">Fick's Cardiac Output</h2>
+        <p class="hero-desc">Estimate cardiac output using the Fick principle — the gold standard for hemodynamic assessment based on oxygen consumption and arteriovenous oxygen difference.</p>
+      </section>
+
+      <div class="formula-banner">
+        <div class="formula-label">Formula</div>
+        <div class="formula-eq">
+          <span class="formula-main">CO = VO<sub>2</sub> / [(SaO<sub>2</sub> − SvO<sub>2</sub>) × Hb × 13.4]</span>
+        </div>
+        <div class="formula-sub-row">
+          <span>CI = CO / BSA</span>
+          <span class="formula-dot">·</span>
+          <span>SV = CO / HR × 1000</span>
+        </div>
+      </div>
+
+      <!-- Mobile tab navigation -->
+      <div class="mobile-tabs" id="mobile-tabs" role="tablist">
+        <button class="mobile-tab active" id="tab-inputs" data-panel="inputs-panel" role="tab" aria-selected="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Inputs
+        </button>
+        <button class="mobile-tab" id="tab-results" data-panel="results-panel" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Results
+          <span class="tab-result-badge" id="tab-result-badge" style="display:none"></span>
+        </button>
+      </div>
+
+      <div class="calculator-layout">
+        <!-- LEFT: Inputs -->
+        <div class="inputs-panel">
+
+          <!-- Patient Demographics -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-icon card-icon--blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <div>
+                <h3 class="card-title">Patient Demographics</h3>
+                <p class="card-desc">Used for BSA and VO₂ estimation</p>
+              </div>
+            </div>
+
+            <div class="form-grid">
+              <div class="form-group">
+                <label class="form-label">Age Group <span class="label-hint">affects VO₂ estimate</span></label>
+                <div class="seg-ctrl" id="age-ctrl">
+                  <button class="seg-btn active" data-val="young" id="age-young-btn">&lt; 70 yo</button>
+                  <button class="seg-btn" data-val="elderly" id="age-elderly-btn">≥ 70 yo</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="hr" class="form-label">Heart Rate <span class="unit">(bpm)</span></label>
+                <input id="hr" type="number" class="form-input" placeholder="e.g. 72" min="20" max="300" step="1" />
+              </div>
+            </div>
+
+            <!-- BSA / Height+Weight Toggle — full width -->
+            <div class="form-group bsa-toggle-block">
+              <div class="field-toggle-header">
+                <label class="form-label" id="bsa-height-label">BSA <span class="unit">(m²)</span></label>
+                <div class="seg-ctrl seg-ctrl--mini" id="bsa-mode-ctrl">
+                  <button class="seg-btn" data-val="height" id="bsa-height-btn">Ht / Wt</button>
+                  <button class="seg-btn active" data-val="bsa" id="bsa-direct-btn">BSA</button>
+                </div>
+              </div>
+
+              <!-- BSA mode: single input -->
+              <div id="bsa-input-wrap">
+                <input id="bsa-direct" type="number" class="form-input" placeholder="e.g. 1.85" min="0.5" max="3.5" step="0.01" />
+              </div>
+
+              <!-- Ht/Wt mode: two inputs side by side -->
+              <div id="height-input-wrap" style="display:none" class="htwt-grid">
+                <div class="form-group">
+                  <label for="height" class="form-label">Height <span class="unit">(cm)</span></label>
+                  <input id="height" type="number" class="form-input" placeholder="e.g. 170" min="50" max="250" step="1" />
+                </div>
+                <div class="form-group">
+                  <label for="weight" class="form-label">Weight <span class="unit">(kg)</span></label>
+                  <input id="weight" type="number" class="form-input" placeholder="e.g. 70" min="1" max="300" step="0.1" />
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Oxygen Consumption -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-icon card-icon--green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v6M12 16v6M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M2 12h6M16 12h6M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24"/></svg>
+              </div>
+              <div>
+                <h3 class="card-title">Oxygen Consumption (VO₂)</h3>
+                <p class="card-desc">Estimated from age and BSA (Fick simplified)</p>
+              </div>
+            </div>
+            <div class="seg-ctrl-full" id="vo2-mode-ctrl">
+              <button class="seg-btn-full active" data-val="estimate" id="vo2-estimate-btn">Estimate (125×BSA)</button>
+              <button class="seg-btn-full" data-val="measured" id="vo2-measured-btn">Enter Directly</button>
+            </div>
+            <div id="vo2-estimated-section">
+              <div class="info-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="info-icon"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                VO₂ = 125 × BSA (mL/min). For patients ≥ 70 years: VO₂ = 110 × BSA.
+              </div>
+              <div class="vo2-preview">
+                <span class="vo2-preview-label">Estimated VO₂:</span>
+                <span class="vo2-preview-val" id="vo2-preview-val">—</span>
+                <span class="vo2-preview-unit">mL/min</span>
+              </div>
+            </div>
+            <div id="vo2-measured-section" style="display:none">
+              <div class="form-group">
+                <label for="vo2-direct" class="form-label">VO₂ <span class="unit">(mL/min)</span></label>
+                <input id="vo2-direct" type="number" class="form-input" placeholder="e.g. 250" min="50" max="2000" step="1" />
+              </div>
+            </div>
+          </div>
+
+          <!-- O2 Saturations -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-icon card-icon--red">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              </div>
+              <div>
+                <h3 class="card-title">Oxygen Saturations</h3>
+                <p class="card-desc">Arterial and mixed venous / pulmonary arterial</p>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="sao2" class="form-label">Arterial SaO₂ <span class="unit">(%)</span><span class="label-hint">Systemic arterial blood</span></label>
+                <input id="sao2" type="number" class="form-input" placeholder="e.g. 98" min="0" max="100" step="0.1" />
+              </div>
+              <div class="form-group">
+                <label for="svo2" class="form-label">Mixed Venous SvO₂ <span class="unit">(%)</span><span class="label-hint">Pulmonary artery</span></label>
+                <input id="svo2" type="number" class="form-input" placeholder="e.g. 65" min="0" max="100" step="0.1" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Hemoglobin -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-icon card-icon--purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="10" ry="6"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+              </div>
+              <div>
+                <h3 class="card-title">Hemoglobin</h3>
+                <p class="card-desc">Blood hemoglobin concentration</p>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="hgb" class="form-label">Hemoglobin <span class="unit">(g/dL)</span></label>
+              <input id="hgb" type="number" class="form-input" placeholder="e.g. 14" min="1" max="25" step="0.1" />
+            </div>
+          </div>
+
+          <button id="calc-btn" class="calc-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Calculate Cardiac Output
+          </button>
+          <button id="reset-btn" class="reset-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.93"/></svg>
+            Reset
+          </button>
+        </div>
+
+        <!-- RIGHT: Results -->
+        <div class="results-panel" id="results-panel">
+          <div class="results-placeholder" id="results-placeholder">
+            <div class="placeholder-icon">
+              <svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="28" fill="url(#phg)" opacity="0.15"/><path d="M16 34l6-12 6 18 6-24 6 18 6-8 6 6" stroke="url(#phg)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="phg" x1="16" y1="16" x2="48" y2="48"><stop stop-color="#818cf8"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs></svg>
+            </div>
+            <p class="placeholder-title">Results will appear here</p>
+            <p class="placeholder-text">Fill in the patient values and click <strong>Calculate Cardiac Output</strong>, or use <strong>Scan Report</strong> to extract values from an image.</p>
+          </div>
+
+          <div class="results-content" id="results-content" style="display:none">
+            <div class="status-banner" id="status-banner">
+              <div class="status-icon" id="status-icon"></div>
+              <div>
+                <div class="status-label" id="status-label"></div>
+                <div class="status-detail" id="status-detail"></div>
+              </div>
+            </div>
+            <div class="results-grid">
+              <div class="result-card result-card--primary">
+                <div class="result-label">Cardiac Output</div>
+                <div class="result-value" id="co-val">—</div>
+                <div class="result-unit">L/min</div>
+                <div class="result-range" id="co-range"></div>
+                <div class="result-gauge-wrap"><div class="result-gauge" id="co-gauge"></div></div>
+              </div>
+              <div class="result-card result-card--secondary">
+                <div class="result-label">Cardiac Index</div>
+                <div class="result-value" id="ci-val">—</div>
+                <div class="result-unit">L/min/m²</div>
+                <div class="result-range" id="ci-range"></div>
+              </div>
+              <div class="result-card result-card--tertiary">
+                <div class="result-label">Stroke Volume</div>
+                <div class="result-value" id="sv-val">—</div>
+                <div class="result-unit">mL/beat</div>
+                <div class="result-range" id="sv-range"></div>
+              </div>
+            </div>
+            <div class="card derived-card">
+              <h4 class="derived-title">Intermediate Calculations</h4>
+              <div class="derived-grid">
+                <div class="derived-item"><span class="derived-label">BSA</span><span class="derived-value" id="bsa-val">—</span><span class="derived-unit">m²</span></div>
+                <div class="derived-item"><span class="derived-label">VO₂</span><span class="derived-value" id="vo2-result-val">—</span><span class="derived-unit">mL/min</span></div>
+                <div class="derived-item"><span class="derived-label">CaO₂</span><span class="derived-value" id="cao2-val">—</span><span class="derived-unit">mL/dL</span></div>
+                <div class="derived-item"><span class="derived-label">CvO₂</span><span class="derived-value" id="cvo2-val">—</span><span class="derived-unit">mL/dL</span></div>
+                <div class="derived-item"><span class="derived-label">AV O₂ Diff</span><span class="derived-value" id="avdo2-val">—</span><span class="derived-unit">mL/dL</span></div>
+                <div class="derived-item"><span class="derived-label">O₂ Extraction</span><span class="derived-value" id="o2ext-val">—</span><span class="derived-unit">%</span></div>
+              </div>
+            </div>
+            <div class="interp-card">
+              <h4 class="interp-title">Clinical Interpretation</h4>
+              <div class="interp-body" id="interp-body"></div>
+            </div>
+            <div class="disclaimer">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="disclaimer-icon"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              For clinical support only. Verify all calculations independently before clinical decisions.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reference Section -->
+      <section class="reference-section">
+        <button class="ref-toggle" id="ref-toggle" aria-expanded="false">
+          <span>Formula Reference</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="ref-grid" id="ref-grid" style="display:none">
+          <div class="ref-card">
+            <h4 class="ref-card-title">Cardiac Output (CO)</h4>
+            <div class="ref-formula">CO = VO₂ / [(SaO₂ − SvO₂) × Hb × 13.4]</div>
+            <p class="ref-desc">Normal: <strong>4–8 L/min</strong> &nbsp;·&nbsp; SaO₂, SvO₂ as fractions</p>
+          </div>
+          <div class="ref-card">
+            <h4 class="ref-card-title">O₂ Content (display)</h4>
+            <div class="ref-formula">CaO₂ = Hb × 13.4 × SaO₂</div>
+            <div class="ref-formula">CvO₂ = Hb × 13.4 × SvO₂</div>
+          </div>
+          <div class="ref-card">
+            <h4 class="ref-card-title">VO₂ Estimate</h4>
+            <div class="ref-formula">&lt; 70 yr: VO₂ = 125 × BSA</div>
+            <div class="ref-formula">≥ 70 yr: VO₂ = 110 × BSA</div>
+          </div>
+          <div class="ref-card">
+            <h4 class="ref-card-title">BSA Formula</h4>
+            <div class="ref-formula">BSA = √(Height cm × Weight kg / 3600)</div>
+            <p class="ref-desc">CI = CO / BSA &nbsp;·&nbsp; SV = CO / HR × 1000</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Mobile bottom action bar -->
+      <div class="mobile-action-bar" id="mobile-action-bar">
+        <button class="mob-scan-btn" id="mob-scan-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Scan
+        </button>
+        <button class="mob-calc-btn" id="mob-calc-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Calculate
+        </button>
+        <button class="mob-reset-btn" id="mob-reset-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.93"/></svg>
+          Reset
+        </button>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="disclaimer-footer">
+        <div class="disclaimer-footer-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div class="disclaimer-footer-body">
+          <p class="disclaimer-footer-title">Medical Disclaimer &amp; Limitations of Use</p>
+          <p class="disclaimer-footer-text">
+            <strong>For clinical decision support only.</strong> FickCalc is a software tool intended to assist — not replace — the clinical judgment of a qualified healthcare professional. Results must always be independently verified before any clinical action is taken.
+          </p>
+          <p class="disclaimer-footer-text">
+            <strong>AI-assisted tool.</strong> This application uses automated OCR and algorithmic estimation. Extracted or computed values may contain errors. Always confirm against source documents and laboratory reports.
+          </p>
+          <p class="disclaimer-footer-text">
+            <strong>Not FDA cleared or CE marked.</strong> This tool has not been reviewed or approved by the U.S. Food and Drug Administration (FDA), Health Canada, or any equivalent regulatory body. It is not intended for use as a standalone diagnostic device.
+          </p>
+          <p class="disclaimer-footer-text">
+            <strong>Formula accuracy.</strong> Cardiac output is estimated using Fick's principle (CO = VO₂ / [(SaO₂ − SvO₂) × Hb × 13.4]) with VO₂ approximated as 125 × BSA (&lt;70 yr) or 110 × BSA (≥70 yr). These are established clinical estimates, not direct measurements. Actual values may differ based on patient condition, measurement technique, and equipment calibration.
+          </p>
+          <p class="disclaimer-footer-text">
+            <strong>No data transmission.</strong> All calculations and OCR processing occur entirely within your browser. No patient data is transmitted to any external server.
+          </p>
+          <p class="disclaimer-footer-text disclaimer-footer-copy">
+            FickCalc &copy; 2025 &nbsp;&middot;&nbsp; Fick's Principle Cardiac Output Estimator &nbsp;&middot;&nbsp; Use with caution in clinical settings
+          </p>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Tesseract.js loaded lazily on first Scan tap -->
+  <script src="app.js"></script>
+  <script src="ocr.js"></script>
+</body>
+</html>
