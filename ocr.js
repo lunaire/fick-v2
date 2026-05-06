@@ -298,12 +298,45 @@ function showOCRStep(n) {
 
 function addImageToQueue(file) {
   const id  = ++queueIdCtr;
-  const url = URL.createObjectURL(file);
-  const ext = file.name.split('.').pop().toUpperCase();
+  const tempUrl = URL.createObjectURL(file);
   const label = `Image ${id}`;
-  const entry = { id, url, label, status: 'pending', found: {} };
+  const entry = { id, url: tempUrl, label, status: 'pending', found: {} };
   imageQueue.push(entry);
   renderQueue();
+
+  // Process image for OCR: scale down and apply filters to improve speed & accuracy
+  const img = new Image();
+  img.onload = () => {
+    const MAX_DIM = 1600;
+    let width = img.width;
+    let height = img.height;
+
+    // Downscale if too large (critical for performance on mobile cameras)
+    if (width > MAX_DIM || height > MAX_DIM) {
+      if (width > height) {
+        height = Math.round(height * (MAX_DIM / width));
+        width = MAX_DIM;
+      } else {
+        width = Math.round(width * (MAX_DIM / height));
+        height = MAX_DIM;
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    // Apply grayscale and boost contrast for better text recognition
+    ctx.filter = 'grayscale(100%) contrast(120%)';
+    ctx.drawImage(img, 0, 0, width, height);
+
+    canvas.toBlob(blob => {
+      URL.revokeObjectURL(entry.url);
+      entry.url = URL.createObjectURL(blob);
+    }, 'image/jpeg', 0.95);
+  };
+  img.src = tempUrl;
 }
 
 function renderQueue() {
