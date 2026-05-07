@@ -327,6 +327,12 @@ function addImageToQueue(file) {
     canvas.height = height;
     const ctx = canvas.getContext('2d');
 
+    // FIX: Fill background with white first! 
+    // Transparent PNGs (like screenshots) will turn black when saved to JPEG,
+    // making black text invisible. This forces a white background.
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, width, height);
+
     // Apply grayscale and boost contrast for better text recognition
     ctx.filter = 'grayscale(100%) contrast(120%)';
     ctx.drawImage(img, 0, 0, width, height);
