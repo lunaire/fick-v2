@@ -1,0 +1,3 @@
+# Vendored Tesseract.js engine assets — keep byte-exact: never diff or
+# convert line endings (the .wasm files must not be altered).
+vendor/** binary

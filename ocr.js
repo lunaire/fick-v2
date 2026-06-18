@@ -178,6 +178,7 @@ function parseOCRText(rawText) {
     .replace(/[ ]{2,}/g, ' ')
     .replace(/(\d)O(\d)/g, '$10$2')
     .replace(/\u2082/g, '2')
+    .replace(/([A-Za-z])0(2)(?!\d)/g, '$1O$2')  // OCR reads O2 labels (SpO2, SO2, PaO2) as "02"
     .replace(/[''`]/g, "'")
     .trim();
 
@@ -461,7 +462,14 @@ async function scanAllImages() {
     progressLabel.textContent = 'Loading OCR engine (first run downloads ~15 MB)…';
     await ensureTesseract();
 
+    // Self-hosted engine assets (vendor/) — no network needed after page load.
+    // Absolute URLs are required: Tesseract runs a blob worker that
+    // importScripts() these, and relative paths can't resolve from a blob: origin.
+    const tessBase = new URL('vendor/tesseract/', document.baseURI).href;
     const worker = await Tesseract.createWorker('eng', 1, {
+      workerPath: tessBase + 'worker.min.js',
+      corePath:   tessBase + 'core',   // dir → auto-picks SIMD vs non-SIMD LSTM core
+      langPath:   tessBase + 'lang',   // contains eng.traineddata.gz
       logger: m => {
         if (m.status === 'recognizing text') {
           progressBar.style.width = Math.round(m.progress * 100) + '%';

@@ -356,7 +356,8 @@ function ensureTesseract() {
     if (tesseractLoaded) { /* already injected, wait */ setTimeout(() => ensureTesseract().then(resolve, reject), 100); return; }
     tesseractLoaded = true;
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    // Self-hosted (vendor/) so OCR works fully offline — no CDN request.
+    script.src = 'vendor/tesseract/tesseract.min.js';
     script.onload  = resolve;
     script.onerror = reject;
     document.head.appendChild(script);
