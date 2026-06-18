@@ -291,6 +291,8 @@ function initOCR() {
     showOCRStep(1);
   });
   $('ocr-apply-btn').addEventListener('click', applyOCRValues);
+
+  if (typeof initAIControls === 'function') initAIControls();
 }
 
 function closeOCR() {
@@ -351,7 +353,7 @@ function addImageToQueue(file) {
   const id  = ++queueIdCtr;
   const tempUrl = URL.createObjectURL(file);
   const label = `Image ${id}`;
-  const entry = { id, url: tempUrl, label, status: 'pending', found: {} };
+  const entry = { id, url: tempUrl, file, label, status: 'pending', found: {} };
   imageQueue.push(entry);
   renderQueue();
 
@@ -454,11 +456,62 @@ function removeFromQueue(id) {
 
 async function scanAllImages() {
   if (!imageQueue.length) return;
+  // Dispatch on the selected mode (ai-extract.js stores it).
+  if (typeof getScanMode === 'function' && getScanMode() === 'cloud') return scanAllImagesCloud();
+  return scanAllImagesOffline();
+}
+
+// ===== CLOUD AI PATH ===== (provider IO lives in ai-extract.js)
+async function scanAllImagesCloud() {
+  const settings = getAISettings();
+  if (!settings.apiKey) { openAISettings(true); return; }              // need a key first
+  if (!hasAIConsent())  { openAIConsent(scanAllImagesCloud); return; } // privacy consent gate
+
+  showOCRStep(2);
+  const progressLabel = $('ocr-progress-label');
+  const progressBar   = $('ocr-progress-bar');
+  const batchStatus   = $('ocr-batch-status');
+  const note          = $('ocr-progress-note');
+  const provName      = providerLabel(settings.provider);
+  progressBar.style.width = '15%';
+  progressLabel.textContent = `Reading ${imageQueue.length} image${imageQueue.length !== 1 ? 's' : ''} with ${provName}…`;
+  batchStatus.textContent = '';
+  if (note) note.textContent = `Sent to ${provName} for extraction. Switch to Offline mode to keep images on your device.`;
+
+  imageQueue.forEach(e => { e.status = 'scanning'; });
+  renderQueue();
+
+  try {
+    const images = await Promise.all(imageQueue.map(e => prepImageForAI(e.file)));
+    progressBar.style.width = '55%';
+    const { found, warning } = await extractWithAI(images, settings);
+    progressBar.style.width = '100%';
+    imageQueue.forEach(e => { e.status = 'done'; e.found = {}; });
+    renderQueue();
+
+    // Build the merged map in the shape renderOCRReview expects.
+    const merged = {};
+    Object.keys(found).forEach(k => { merged[k] = { value: found[k], conflict: false }; });
+    renderOCRReview(merged, warning);
+    showOCRStep(3);
+  } catch (err) {
+    imageQueue.forEach(e => { e.status = 'error'; });
+    renderQueue();
+    progressLabel.textContent = 'AI extraction failed: ' + err.message;
+    console.error(err);
+  }
+}
+
+// ===== OFFLINE TESSERACT PATH =====
+async function scanAllImagesOffline() {
+  if (!imageQueue.length) return;
   showOCRStep(2);
 
   const progressLabel = $('ocr-progress-label');
   const progressBar   = $('ocr-progress-bar');
   const batchStatus   = $('ocr-batch-status');
+  const offlineNote   = $('ocr-progress-note');
+  if (offlineNote) offlineNote.textContent = 'Running entirely on your device — no data sent anywhere.';
 
   try {
     // Ensure Tesseract.js is loaded (lazy-loaded on first use). The first run

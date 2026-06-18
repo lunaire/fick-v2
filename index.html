@@ -25,13 +25,20 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/></svg>
           Scan Reports / Lab Values
         </div>
-        <button class="ocr-close" id="ocr-close">✕</button>
+        <div class="ocr-modal-actions">
+          <button class="ocr-settings-btn" id="ocr-settings-btn" title="AI settings" aria-label="AI settings">⚙</button>
+          <button class="ocr-close" id="ocr-close">✕</button>
+        </div>
       </div>
 
       <div class="ocr-body">
         <!-- Step 1: Image Queue -->
         <div class="ocr-step" id="ocr-step-1">
-          <p class="ocr-hint">Add one or more images — lab reports, ABG printouts, Epic flowsheet screenshots. OCR runs entirely on your device.</p>
+          <div class="ocr-mode-toggle" id="ocr-mode-toggle">
+            <button class="ocr-mode-btn" data-mode="cloud" id="ocr-mode-cloud">AI (cloud)</button>
+            <button class="ocr-mode-btn" data-mode="offline" id="ocr-mode-offline">Offline (on-device)</button>
+          </div>
+          <p class="ocr-hint" id="ocr-hint">Add one or more images, then Scan.</p>
 
           <input type="file" id="ocr-file-input" accept="image/*" style="display:none" />
           <div class="ocr-capture-buttons">
@@ -55,7 +62,7 @@
 
           <button class="ocr-scan-all-btn" id="ocr-scan-all-btn" style="display:none">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            Scan All Images
+            <span id="ocr-scan-all-label">Scan All Images</span>
           </button>
         </div>
 
@@ -68,7 +75,7 @@
               <div class="ocr-progress-bar" id="ocr-progress-bar"></div>
             </div>
             <p class="ocr-batch-status" id="ocr-batch-status"></p>
-            <p class="ocr-progress-note">Running entirely on your device — no data sent anywhere.</p>
+            <p class="ocr-progress-note" id="ocr-progress-note">Running entirely on your device — no data sent anywhere.</p>
           </div>
         </div>
 
@@ -91,6 +98,43 @@
               Add More / Rescan
             </button>
             <button class="ocr-apply-btn" id="ocr-apply-btn">Apply to Calculator</button>
+          </div>
+        </div>
+
+        <!-- AI Settings (cloud mode) -->
+        <div class="ocr-settings-panel" id="ocr-settings-panel" style="display:none">
+          <h3 class="ocr-settings-title">AI Settings</h3>
+          <label class="ocr-settings-field">Provider
+            <select id="ai-provider">
+              <option value="claude">Claude (Anthropic)</option>
+              <option value="openai">OpenAI</option>
+            </select>
+          </label>
+          <label class="ocr-settings-field">API key
+            <input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="paste your key" />
+          </label>
+          <label class="ocr-settings-field">Model <span class="ocr-settings-opt">optional</span>
+            <input id="ai-model" type="text" autocomplete="off" spellcheck="false" placeholder="claude-opus-4-8" />
+          </label>
+          <label class="ocr-settings-field">Base URL <span class="ocr-settings-opt">optional</span>
+            <input id="ai-baseurl" type="text" autocomplete="off" spellcheck="false" placeholder="https://api.anthropic.com" />
+          </label>
+          <p class="ocr-settings-note">Your key is stored only in this browser (localStorage) and sent only to the provider you choose. Avoid using a shared key on a shared device.</p>
+          <div class="ocr-settings-actions">
+            <button class="ocr-btn-ghost" id="ai-settings-cancel">Cancel</button>
+            <button class="ocr-btn-primary" id="ai-settings-save">Save</button>
+          </div>
+        </div>
+
+        <!-- Cloud consent gate -->
+        <div class="ocr-consent" id="ocr-consent" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ocr-consent-icon"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <h3 class="ocr-consent-title">Send images to the cloud?</h3>
+          <p class="ocr-consent-text">To read your images, they will be sent to <strong id="ocr-consent-provider">the AI provider</strong> over the internet. They leave this device and are subject to that provider's terms.</p>
+          <p class="ocr-consent-warn">Use real patient data only if your agreement with the provider (e.g. a signed BAA) permits it. For fully on-device processing, use <strong>Offline</strong> mode instead.</p>
+          <div class="ocr-consent-actions">
+            <button class="ocr-btn-ghost" id="ocr-consent-cancel">Cancel</button>
+            <button class="ocr-btn-primary" id="ocr-consent-accept">I understand — continue</button>
           </div>
         </div>
       </div>
@@ -434,7 +478,7 @@
             <strong>Formula accuracy.</strong> Cardiac output is estimated using Fick's principle (CO = VO₂ / [(SaO₂ − SvO₂) × Hb × 13.4]) with VO₂ approximated as 125 × BSA (&lt;70 yr) or 110 × BSA (≥70 yr). These are established clinical estimates, not direct measurements. Actual values may differ based on patient condition, measurement technique, and equipment calibration.
           </p>
           <p class="disclaimer-footer-text">
-            <strong>No data transmission.</strong> All calculations and OCR processing occur entirely within your browser. No patient data is transmitted to any external server.
+            <strong>Data handling.</strong> Calculations and <strong>Offline</strong> image processing run entirely within your browser. <strong>Cloud AI</strong> mode sends the image(s) you scan to the AI provider you configure (e.g. Anthropic or OpenAI) to extract values — those images leave your device and are subject to that provider's terms. Use Cloud AI with real patient data only if your agreement with the provider (e.g. a signed BAA) permits it; otherwise use Offline mode.
           </p>
           <p class="disclaimer-footer-text disclaimer-footer-copy">
             FickCalc &copy; 2025 &nbsp;&middot;&nbsp; Fick's Principle Cardiac Output Estimator &nbsp;&middot;&nbsp; Use with caution in clinical settings
@@ -444,8 +488,9 @@
     </footer>
   </div>
 
-  <!-- Tesseract.js loaded lazily on first Scan tap -->
+  <!-- Offline mode lazy-loads self-hosted Tesseract; cloud AI uses fetch (ai-extract.js) -->
   <script src="app.js"></script>
+  <script src="ai-extract.js"></script>
   <script src="ocr.js"></script>
 </body>
 </html>
