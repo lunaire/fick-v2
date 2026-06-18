@@ -185,6 +185,16 @@ body {
   box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
   background: var(--surface-3);
 }
+/* Visible keyboard-focus indicator for all interactive controls (WCAG 2.4.7).
+   :focus-visible keeps mouse clicks ring-free while showing it for keyboard nav. */
+button:focus-visible,
+a:focus-visible,
+[role="tab"]:focus-visible,
+.seg-btn:focus-visible,
+.seg-btn-full:focus-visible {
+  outline: 2px solid var(--indigo);
+  outline-offset: 2px;
+}
 .form-input::placeholder { color: var(--text-muted); }
 .form-input::-webkit-inner-spin-button, .form-input::-webkit-outer-spin-button { opacity: 0.4; }
 .form-input.error { border-color: var(--red); box-shadow: 0 0 0 3px rgba(248,113,113,0.12); }
@@ -570,9 +580,8 @@ body {
 
   /* Form inputs: bigger touch targets */
   .form-input { padding: 13px 14px; font-size: 1rem; border-radius: 10px; }
-  .form-grid { gap: 12px; }
   /* Keep 2 cols on mobile for demographics (compact) */
-  .form-grid { grid-template-columns: 1fr 1fr; }
+  .form-grid { gap: 12px; grid-template-columns: 1fr 1fr; }
 
   /* Seg controls */
   .seg-btn { padding: 10px 6px; font-size: 0.78rem; }

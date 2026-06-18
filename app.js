@@ -112,14 +112,16 @@ function calcVO2(age, bsa) {
 }
 
 function calcFick({ vo2, sao2, svo2, hgb }) {
-  // CO = VO2 / [(SaO2 - SvO2) × Hb × 13.4]  (sats as decimals)
+  // O2 content (mL O2 per dL blood): CxO2 = 1.34 × Hb × SxO2  (sats as fractions)
+  const HUFNER = 1.34;                    // mL O2 carried per g of hemoglobin
   const sao2f  = sao2 / 100;
   const svo2f  = svo2 / 100;
-  const avdO2  = (sao2f - svo2f) * hgb * 13.4;  // mL/dL equivalent denominator
+  const cao2   = HUFNER * hgb * sao2f;    // arterial O2 content, mL/dL
+  const cvo2   = HUFNER * hgb * svo2f;    // venous O2 content, mL/dL
+  const avdO2  = cao2 - cvo2;             // arteriovenous O2 difference, mL/dL
   if (avdO2 <= 0) return null;
-  const co     = vo2 / avdO2;                     // L/min
-  const cao2   = hgb * 13.4 * sao2f;             // for display
-  const cvo2   = hgb * 13.4 * svo2f;             // for display
+  // CO (L/min) = VO2 (mL/min) / [AVDO2 (mL/dL) × 10 dL/L]
+  const co     = vo2 / (avdO2 * 10);      // L/min
   return { co, cao2, cvo2, avdO2 };
 }
 
@@ -128,6 +130,20 @@ function initCalculator() {
   $('calc-btn').addEventListener('click', calculate);
   $('reset-btn').addEventListener('click', reset);
 }
+
+// Accepted clinical input ranges (mirror the HTML min/max). Values outside
+// these are rejected so bad input (0, negatives, typos) can't produce
+// Infinity/NaN results — e.g. HR 0 → SV Infinity, BSA 0 → CI Infinity.
+const INPUT_RANGES = {
+  hr:           [20, 300],
+  sao2:         [1, 100],
+  svo2:         [1, 100],
+  hgb:          [1, 25],
+  weight:       [1, 300],
+  height:       [50, 250],
+  'bsa-direct': [0.5, 3.5],
+  'vo2-direct': [50, 2000],
+};
 
 function validate() {
   const required = ['hr','sao2','svo2','hgb'];
@@ -140,13 +156,17 @@ function validate() {
     const el = $(id);
     if (!el) return;
     const v = parseFloat(el.value);
-    if (!el.value || isNaN(v)) {
+    const range = INPUT_RANGES[id];
+    const outOfRange = range && (v < range[0] || v > range[1]);
+    if (!el.value || isNaN(v) || outOfRange) {
       el.classList.add('error');
       el.classList.add('shake');
+      if (outOfRange) el.title = `Expected ${range[0]}–${range[1]}`;
       setTimeout(() => el.classList.remove('shake'), 500);
       valid = false;
     } else {
       el.classList.remove('error');
+      el.removeAttribute('title');
     }
   });
   return valid;
@@ -253,11 +273,14 @@ function interpret(co, ci, sv, o2ext) {
 function reset() {
   ['age','weight','height','hr','sao2','svo2','hgb','vo2-direct','bsa-direct'].forEach(id => {
     const el = $(id);
-    if (el) { el.value = ''; el.classList.remove('error'); }
+    if (el) { el.value = ''; el.classList.remove('error'); el.removeAttribute('title'); }
   });
   $('vo2-preview-val').textContent = '—';
   $('results-placeholder').style.display = '';
   $('results-content').style.display = 'none';
+  // Clear stale result UI (gauge fill + mobile results-ready badge)
+  const gauge = $('co-gauge'); if (gauge) gauge.style.width = '0%';
+  const badge = $('tab-result-badge'); if (badge) badge.style.display = 'none';
   // On mobile, switch back to inputs tab
   if (isMobile()) switchTab('inputs-panel');
 }

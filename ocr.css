@@ -19,7 +19,7 @@
   opacity: 0; pointer-events: none; transition: opacity 0.25s;
   padding: 20px;
 }
-.ocr-overlay.open { opacity: 1; pointer-events: all; }
+.ocr-overlay.open { opacity: 1; pointer-events: auto; }
 .ocr-modal {
   background: var(--surface); border: 1px solid rgba(99,102,241,0.25);
   border-radius: 20px; width: 100%; max-width: 560px; max-height: 90vh;
