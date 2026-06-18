@@ -46,8 +46,8 @@ const OCR_PATTERNS = {
     /([\d]{1,2}(?:\.[\d]{1,2})?)\s+Hemoglobin[,\s]+Venous/i,
     // GEM tHb
     /\bt[Hh]b\s+([\d]{1,2}(?:\.[\d]{1,2})?)\s*(?:g\/d[Ll])?/i,
-    // Generic Hgb/Hb
-    /(?:H(?:gb|b|emoglobin)|HGB|HB)\s*[:\|]?\s*([\d]{1,2}(?:\.[\d]{1,2})?)\s*(?:g\/d[Ll]|gm\/dL)?/i,
+    // Generic Hgb/Hb — leading \b prevents matching the "Hb" inside COHb / MetHb / O2Hb
+    /\b(?:H(?:gb|b|emoglobin)|HGB|HB)\s*[:\|]?\s*([\d]{1,2}(?:\.[\d]{1,2})?)\s*(?:g\/d[Ll]|gm\/dL)?/i,
     /\bH(?:gb|b)\b\s+([\d]{1,2}(?:\.[\d])?)/i,
   ],
   hr: [
@@ -209,7 +209,8 @@ function parseOCRText(rawText) {
       const m = text.match(re);
       if (m) {
         if (key === 'height' && m[2] !== undefined) {
-          found[key] = feetToCm(m[1], m[2]);
+          const cm = feetToCm(m[1], m[2]);
+          if (SANITY.height(cm)) found[key] = cm;   // sanity-check the converted value
         } else {
           const val = parseFloat(m[1]);
           if (!isNaN(val) && SANITY[key] && SANITY[key](val)) found[key] = val;
@@ -296,6 +297,50 @@ function showOCRStep(n) {
   });
 }
 
+// Adaptive (local-mean) binarization — Bradley/Wellner thresholding via an
+// integral image. Unlike a global threshold it tolerates uneven lighting
+// (shadows/glare on phone photos) while still cleanly separating crisp
+// screenshot text. This is the single biggest accuracy win for document OCR.
+function binarizeAdaptive(ctx, w, h) {
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const d = imgData.data;
+  const n = w * h;
+  const gray = new Float32Array(n);
+  for (let i = 0, p = 0; p < n; i += 4, p++) {
+    gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  }
+
+  // Summed-area table for O(1) window means.
+  const iw = w + 1;
+  const integral = new Float64Array(iw * (h + 1));
+  for (let y = 1; y <= h; y++) {
+    let rowSum = 0;
+    for (let x = 1; x <= w; x++) {
+      rowSum += gray[(y - 1) * w + (x - 1)];
+      integral[y * iw + x] = integral[(y - 1) * iw + x] + rowSum;
+    }
+  }
+
+  const S = Math.max(8, Math.floor(Math.min(w, h) / 16)); // window ~6% of short side
+  const half = (S / 2) | 0;
+  const T = 0.15; // pixel is "ink" if >15% darker than its local mean
+  for (let y = 0; y < h; y++) {
+    const y1 = Math.max(0, y - half), y2 = Math.min(h - 1, y + half);
+    for (let x = 0; x < w; x++) {
+      const x1 = Math.max(0, x - half), x2 = Math.min(w - 1, x + half);
+      const count = (x2 - x1 + 1) * (y2 - y1 + 1);
+      const sum = integral[(y2 + 1) * iw + (x2 + 1)] - integral[y1 * iw + (x2 + 1)]
+                - integral[(y2 + 1) * iw + x1] + integral[y1 * iw + x1];
+      const p = y * w + x;
+      const bw = (gray[p] * count <= sum * (1 - T)) ? 0 : 255;
+      const di = p * 4;
+      d[di] = d[di + 1] = d[di + 2] = bw;
+      d[di + 3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
 function addImageToQueue(file) {
   const id  = ++queueIdCtr;
   const tempUrl = URL.createObjectURL(file);
@@ -304,45 +349,57 @@ function addImageToQueue(file) {
   imageQueue.push(entry);
   renderQueue();
 
-  // Process image for OCR: scale down and apply filters to improve speed & accuracy
-  const img = new Image();
-  img.onload = () => {
-    const MAX_DIM = 1600;
-    let width = img.width;
-    let height = img.height;
+  // Preprocess for OCR. entry.ready resolves once the processed blob is in
+  // place, so scanAllImages() can await it and never OCR the raw image.
+  entry.ready = new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        // Scale toward a legible target rather than always shrinking. Small
+        // screenshots are upscaled (≤2×) so glyphs are big enough for the LSTM;
+        // very large photos are capped for performance.
+        const LONG_TARGET = 2200; // aim for ~2200px on the long edge
+        const MAX_DIM      = 3000; // never exceed (perf ceiling)
+        const long = Math.max(img.width, img.height) || 1;
+        let scale = 1;
+        if (long > MAX_DIM)          scale = MAX_DIM / long;
+        else if (long < LONG_TARGET) scale = Math.min(2, LONG_TARGET / long);
+        const width  = Math.max(1, Math.round(img.width  * scale));
+        const height = Math.max(1, Math.round(img.height * scale));
 
-    // Downscale if too large (critical for performance on mobile cameras)
-    if (width > MAX_DIM || height > MAX_DIM) {
-      if (width > height) {
-        height = Math.round(height * (MAX_DIM / width));
-        width = MAX_DIM;
-      } else {
-        width = Math.round(width * (MAX_DIM / height));
-        height = MAX_DIM;
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        // White background first so transparent screenshots don't go black.
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Adaptive binarization (falls back to the drawn image if it throws).
+        try { binarizeAdaptive(ctx, width, height); }
+        catch (e) { console.warn('OCR binarization skipped:', e); }
+
+        // PNG keeps the binarized text crisp (no JPEG ringing artifacts).
+        canvas.toBlob(blob => {
+          if (blob) {
+            URL.revokeObjectURL(entry.url);
+            entry.url = URL.createObjectURL(blob);
+            renderQueue(); // show the processed thumbnail
+          }
+          resolve();
+        }, 'image/png');
+      } catch (e) {
+        console.warn('OCR preprocess failed, using original image:', e);
+        resolve();
       }
-    }
-
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-
-    // FIX: Fill background with white first! 
-    // Transparent PNGs (like screenshots) will turn black when saved to JPEG,
-    // making black text invisible. This forces a white background.
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, width, height);
-
-    // Apply grayscale and boost contrast for better text recognition
-    ctx.filter = 'grayscale(100%) contrast(120%)';
-    ctx.drawImage(img, 0, 0, width, height);
-
-    canvas.toBlob(blob => {
-      URL.revokeObjectURL(entry.url);
-      entry.url = URL.createObjectURL(blob);
-    }, 'image/jpeg', 0.95);
-  };
-  img.src = tempUrl;
+    };
+    img.onerror = () => { console.warn('OCR image failed to load:', label); resolve(); };
+    img.src = tempUrl;
+  });
 }
 
 function renderQueue() {
@@ -398,7 +455,10 @@ async function scanAllImages() {
   const batchStatus   = $('ocr-batch-status');
 
   try {
-    // Ensure Tesseract.js is loaded (lazy-loaded on first use)
+    // Ensure Tesseract.js is loaded (lazy-loaded on first use). The first run
+    // downloads the engine + language model (~15 MB) from the CDN — surface
+    // that so the spinner doesn't look frozen.
+    progressLabel.textContent = 'Loading OCR engine (first run downloads ~15 MB)…';
     await ensureTesseract();
 
     const worker = await Tesseract.createWorker('eng', 1, {
@@ -408,7 +468,13 @@ async function scanAllImages() {
         }
       }
     });
-    await worker.setParameters({ tessedit_pageseg_mode: '6' });
+    // PSM 4 = single column of variable-size text — handles label/value report
+    // layouts better than PSM 6's "uniform block" assumption. preserve_interword_spaces
+    // keeps "SO2, Venous   53.0" intact for the parser's \s+ patterns.
+    await worker.setParameters({
+      tessedit_pageseg_mode: '4',
+      preserve_interword_spaces: '1',
+    });
 
     for (let i = 0; i < imageQueue.length; i++) {
       const entry = imageQueue[i];
@@ -419,7 +485,10 @@ async function scanAllImages() {
       renderQueue();
 
       try {
+        await entry.ready; // wait for preprocessing to finish before OCR
         const { data: { text } } = await worker.recognize(entry.url);
+        entry.rawText   = text; // kept for debugging
+        console.log(`[OCR] ${entry.label} raw text:\n`, text);
         const result    = parseOCRText(text);
         entry.found     = result.found;
         entry.warning   = result.warning || null;

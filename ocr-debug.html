@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OCR Debug — Fick Calc</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { font-family: system-ui, sans-serif; background:#0f1117; color:#e5e7eb; margin:0; padding:20px; }
+    h1 { font-size:1.2rem; margin:0 0 4px; }
+    p.sub { color:#9ca3af; margin:0 0 16px; font-size:.85rem; }
+    .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+    button, label.btn { background:#6366f1; color:#fff; border:none; padding:9px 14px; border-radius:8px; cursor:pointer; font-size:.85rem; }
+    button:disabled { opacity:.5; cursor:default; }
+    .panels { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .panel { background:#161922; border:1px solid #262b38; border-radius:10px; padding:12px; min-width:0; }
+    .panel h2 { font-size:.8rem; text-transform:uppercase; letter-spacing:.05em; color:#9ca3af; margin:0 0 8px; }
+    canvas, img.preview { max-width:100%; height:auto; border:1px solid #262b38; border-radius:6px; background:#fff; }
+    pre { white-space:pre-wrap; word-break:break-word; background:#0b0d13; border:1px solid #262b38; border-radius:6px; padding:10px; font-size:.78rem; max-height:340px; overflow:auto; }
+    table { width:100%; border-collapse:collapse; font-size:.82rem; }
+    th, td { text-align:left; padding:5px 8px; border-bottom:1px solid #262b38; }
+    th { color:#9ca3af; font-weight:600; }
+    .hit { color:#34d399; font-weight:600; }
+    .miss { color:#6b7280; }
+    .status { font-size:.82rem; color:#9ca3af; margin:10px 0; min-height:1.2em; }
+    @media (max-width:760px){ .panels{ grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <h1>OCR Debug Harness</h1>
+  <p class="sub">Drop in an image that scans poorly. Compares the OCR engine reading the <strong>raw</strong> image vs. the <strong>preprocessed</strong> (adaptive-binarized) image, and shows which fields the parser extracts. Uses the real <code>binarizeAdaptive()</code> and <code>parseOCRText()</code> from <code>ocr.js</code>.</p>
+
+  <div class="controls">
+    <label class="btn">Choose image<input id="file" type="file" accept="image/*" style="display:none" /></label>
+    <button id="run" disabled>Run OCR comparison</button>
+    <span class="status" id="status">Load an image to begin.</span>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <h2>Original (as fed to OCR before this fix)</h2>
+      <img id="orig" class="preview" alt="original" />
+    </div>
+    <div class="panel">
+      <h2>Preprocessed (scaled + adaptive binarized)</h2>
+      <canvas id="proc"></canvas>
+    </div>
+  </div>
+
+  <div class="panels" style="margin-top:16px">
+    <div class="panel">
+      <h2>Raw OCR text — original</h2>
+      <pre id="raw-orig">—</pre>
+    </div>
+    <div class="panel">
+      <h2>Raw OCR text — preprocessed</h2>
+      <pre id="raw-proc">—</pre>
+    </div>
+  </div>
+
+  <div class="panels" style="margin-top:16px">
+    <div class="panel">
+      <h2>Parsed fields — original</h2>
+      <div id="tbl-orig"></div>
+    </div>
+    <div class="panel">
+      <h2>Parsed fields — preprocessed</h2>
+      <div id="tbl-proc"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <!-- Reuse the production functions: binarizeAdaptive, parseOCRText, OCR_FIELDS.
+       ocr.js does not auto-run anything that touches the DOM, so loading it is safe. -->
+  <script src="ocr.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    let origCanvas = null;   // raw image drawn to canvas (no binarization)
+    let procCanvas = null;   // scaled + binarized
+
+    $('file').addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const url = URL.createObjectURL(f);
+      $('orig').src = url;
+      const img = new Image();
+      img.onload = () => {
+        // Mirror production scaling (LONG_TARGET 2200 / MAX_DIM 3000).
+        const LONG_TARGET = 2200, MAX_DIM = 3000;
+        const long = Math.max(img.width, img.height) || 1;
+        let scale = 1;
+        if (long > MAX_DIM) scale = MAX_DIM / long;
+        else if (long < LONG_TARGET) scale = Math.min(2, LONG_TARGET / long);
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+
+        // Original (scaled, no binarization) for a fair OCR comparison.
+        origCanvas = document.createElement('canvas');
+        origCanvas.width = w; origCanvas.height = h;
+        const octx = origCanvas.getContext('2d');
+        octx.fillStyle = 'white'; octx.fillRect(0, 0, w, h);
+        octx.drawImage(img, 0, 0, w, h);
+
+        // Preprocessed: same scale + adaptive binarization from ocr.js.
+        procCanvas = $('proc');
+        procCanvas.width = w; procCanvas.height = h;
+        const pctx = procCanvas.getContext('2d');
+        pctx.imageSmoothingEnabled = true; pctx.imageSmoothingQuality = 'high';
+        pctx.fillStyle = 'white'; pctx.fillRect(0, 0, w, h);
+        pctx.drawImage(img, 0, 0, w, h);
+        try { binarizeAdaptive(pctx, w, h); }
+        catch (err) { $('status').textContent = 'binarizeAdaptive threw: ' + err.message; }
+
+        $('run').disabled = false;
+        $('status').textContent = `Loaded ${img.width}×${img.height}px → processed at ${w}×${h}px. Ready.`;
+      };
+      img.onerror = () => { $('status').textContent = 'Could not load that image.'; };
+      img.src = url;
+    });
+
+    $('run').addEventListener('click', async () => {
+      $('run').disabled = true;
+      $('status').textContent = 'Loading OCR engine (first run downloads ~15 MB)…';
+      try {
+        const worker = await Tesseract.createWorker('eng', 1, {
+          logger: m => { if (m.status === 'recognizing text') $('status').textContent = `Recognizing… ${Math.round(m.progress*100)}%`; }
+        });
+        await worker.setParameters({ tessedit_pageseg_mode: '4', preserve_interword_spaces: '1' });
+
+        const blobOf = c => new Promise(res => c.toBlob(res, 'image/png'));
+
+        $('status').textContent = 'Recognizing original…';
+        const { data: { text: tOrig } } = await worker.recognize(await blobOf(origCanvas));
+        $('raw-orig').textContent = tOrig || '(empty)';
+        renderTable('tbl-orig', parseOCRText(tOrig).found);
+
+        $('status').textContent = 'Recognizing preprocessed…';
+        const { data: { text: tProc } } = await worker.recognize(await blobOf(procCanvas));
+        $('raw-proc').textContent = tProc || '(empty)';
+        renderTable('tbl-proc', parseOCRText(tProc).found);
+
+        await worker.terminate();
+        $('status').textContent = 'Done. Compare the two columns — preprocessed should read more cleanly.';
+      } catch (err) {
+        $('status').textContent = 'OCR failed: ' + err.message + ' (CDN/network blocked?)';
+        console.error(err);
+      }
+      $('run').disabled = false;
+    });
+
+    function renderTable(elId, found) {
+      const rows = OCR_FIELDS.map(({ key, label, unit }) => {
+        const v = found[key];
+        const cell = v !== undefined
+          ? `<span class="hit">${v} ${unit}</span>`
+          : `<span class="miss">— not found</span>`;
+        return `<tr><th>${label}</th><td>${cell}</td></tr>`;
+      }).join('');
+      $(elId).innerHTML = `<table><tbody>${rows}</tbody></table>`;
+    }
+  </script>
+</body>
+</html>
