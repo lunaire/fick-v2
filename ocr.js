@@ -75,6 +75,7 @@ const OCR_PATTERNS = {
 };
 
 const SANITY = {
+  // sat bounds mirror INPUT_RANGES in app.js (keep in sync)
   sao2:   v => v > 20  && v <= 100,
   svo2:   v => v > 10  && v <= 100,
   hgb:    v => v > 2   && v < 25,
@@ -187,19 +188,23 @@ function parseOCRText(rawText) {
   let warning   = multiResult.warning;
 
   if (source === 'gem') {
-    const sampleType = detectGEMSampleType(rawText);
-    const tHbM = text.match(/\bt[Hh]b\s+([\d]{1,2}(?:\.[\d]{1,2})?)\s*(?:g\/d[Ll])?/i);
+    let sampleType = detectGEMSampleType(rawText);
+    // tHb (total hemoglobin). \D{0,4} tolerates an out-of-range flag char that
+    // GEM prints between label and value, e.g. "tHb  $ 7.7 g/dL".
+    const tHbM = text.match(/\bt[Hh]b\b\D{0,4}([\d]{1,2}(?:\.[\d]{1,2})?)/i);
     if (tHbM) { const v = parseFloat(tHbM[1]); if (SANITY.hgb(v)) found.hgb = v; }
-    const sO2M = text.match(/\bsO2\s+([\d]{1,3}(?:\.[\d]{1,2})?)\s*%?/i);
-    if (sO2M) {
-      const v = parseFloat(sO2M[1]);
-      if (v > 20 && v <= 100) { sampleType === 'venous' ? (found.svo2 = v) : (found.sao2 = v); }
-    }
-    if (!found.sao2 && !found.svo2) {
-      const o2hbM = text.match(/\bO2Hb\s+([\d]{1,3}(?:\.[\d]{1,2})?)\s*%?/i);
-      if (o2hbM) {
-        const v = parseFloat(o2hbM[1]);
-        if (v > 20 && v <= 100) { sampleType === 'venous' ? (found.svo2 = v) : (found.sao2 = v); }
+    // Saturation: prefer sO2, fall back to O2Hb. The subscript "2" OCRs
+    // unreliably (sO2 -> "80,", O2Hb -> "O,Hb"), so the label match is loose
+    // and \D{0,4} skips any flag char before the number.
+    const satM = text.match(/\bs[O0]2\b\D{0,4}([\d]{1,3}(?:\.[\d]{1,2})?)/i)
+              || text.match(/\bO[2,]?Hb\b\D{0,4}([\d]{1,3}(?:\.[\d]{1,2})?)/i);
+    if (satM) {
+      const v = parseFloat(satM[1]);
+      if (v > 20 && v <= 100) {
+        // GEM 5000 printouts may omit "Sample Type"; infer from the value —
+        // arterial saturations run high, mixed-venous run lower. (Verify in review.)
+        if (!sampleType) sampleType = v >= 80 ? 'arterial' : 'venous';
+        sampleType === 'venous' ? (found.svo2 = v) : (found.sao2 = v);
       }
     }
   }
