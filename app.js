@@ -136,8 +136,8 @@ function initCalculator() {
 // Infinity/NaN results — e.g. HR 0 → SV Infinity, BSA 0 → CI Infinity.
 const INPUT_RANGES = {
   hr:           [20, 300],
-  sao2:         [1, 100],
-  svo2:         [1, 100],
+  sao2:         [20, 100],  // sat bounds mirror ocr.js SANITY (keep in sync)
+  svo2:         [10, 100],
   hgb:          [1, 25],
   weight:       [1, 300],
   height:       [50, 250],
@@ -275,6 +275,11 @@ function reset() {
     const el = $(id);
     if (el) { el.value = ''; el.classList.remove('error'); el.removeAttribute('title'); }
   });
+  // Restore segmented controls to their defaults (young / BSA / estimate);
+  // clicking re-runs each handler so module state + input visibility reset too.
+  $('age-young-btn')?.click();
+  $('bsa-direct-btn')?.click();
+  $('vo2-estimate-btn')?.click();
   $('vo2-preview-val').textContent = '—';
   $('results-placeholder').style.display = '';
   $('results-content').style.display = 'none';
