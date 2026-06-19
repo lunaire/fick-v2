@@ -32,6 +32,31 @@ const FIELD_SCHEMA = {
   required: ['sao2', 'svo2', 'hgb', 'hr', 'weight', 'height', 'bsa', 'vo2'],
 };
 
+// Gemini uses a different (OpenAPI-subset) schema dialect: singular uppercase
+// `type` plus `nullable: true`, instead of a `["x","null"]` type union.
+// Derive it from FIELD_SCHEMA so the two can't drift apart.
+function toGeminiSchema(schema) {
+  const props = {};
+  Object.entries(schema.properties).forEach(([key, def]) => {
+    const types = Array.isArray(def.type) ? def.type : [def.type];
+    const base  = types.find(t => t !== 'null') || types[0];
+    props[key] = {
+      type: base.toUpperCase(),
+      ...(types.includes('null') ? { nullable: true } : {}),
+      description: def.description,
+    };
+  });
+  return { type: 'OBJECT', properties: props, required: schema.required };
+}
+const GEMINI_FIELD_SCHEMA = toGeminiSchema(FIELD_SCHEMA);
+
+// ---- Per-provider defaults (model + endpoint) ----
+const PROVIDER_DEFAULTS = {
+  gemini: { model: 'gemini-2.0-flash', baseUrl: 'https://generativelanguage.googleapis.com' },
+  claude: { model: 'claude-opus-4-8',  baseUrl: 'https://api.anthropic.com' },
+  openai: { model: 'gpt-4o',           baseUrl: 'https://api.openai.com' },
+};
+
 const EXTRACTION_PROMPT = [
   'You are a careful clinical data-extraction assistant. You are given one or more photos or',
   'screenshots of lab reports, blood-gas / CO-oximetry printouts, or monitor screens.',
@@ -58,7 +83,7 @@ function getAISettings() {
   let s = {};
   try { s = JSON.parse(localStorage.getItem(AI_SETTINGS_KEY) || '{}'); } catch (e) { s = {}; }
   return {
-    provider: s.provider || 'claude',
+    provider: s.provider || 'gemini',
     apiKey:   s.apiKey   || '',
     model:    s.model    || '',
     baseUrl:  s.baseUrl  || '',
@@ -81,6 +106,7 @@ function grantAIConsent() {
 }
 function providerLabel(provider) {
   if (provider === 'openai') return 'OpenAI';
+  if (provider === 'gemini') return 'Google Gemini';
   if (provider === 'claude') return 'Claude (Anthropic)';
   return 'the configured AI provider';
 }
@@ -154,8 +180,9 @@ async function apiError(res, name) {
 
 // ---- Provider adapters ----
 async function claudeAdapter(images, settings) {
-  const base  = (settings.baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '');
-  const model = settings.model || 'claude-opus-4-8';
+  const d     = PROVIDER_DEFAULTS.claude;
+  const base  = (settings.baseUrl || d.baseUrl).replace(/\/+$/, '');
+  const model = settings.model || d.model;
   const content = images.map(im => ({
     type: 'image', source: { type: 'base64', media_type: im.mediaType, data: im.base64 },
   }));
@@ -183,8 +210,9 @@ async function claudeAdapter(images, settings) {
 }
 
 async function openaiAdapter(images, settings) {
-  const base  = (settings.baseUrl || 'https://api.openai.com').replace(/\/+$/, '');
-  const model = settings.model || 'gpt-4o';
+  const d     = PROVIDER_DEFAULTS.openai;
+  const base  = (settings.baseUrl || d.baseUrl).replace(/\/+$/, '');
+  const model = settings.model || d.model;
   const content = images.map(im => ({ type: 'image_url', image_url: { url: im.dataUrl } }));
   content.push({ type: 'text', text: 'Extract the values as specified and return the JSON object.' });
   const res = await fetch(base + '/v1/chat/completions', {
@@ -209,13 +237,43 @@ async function openaiAdapter(images, settings) {
   return { parsed: parseModelJSON(text), raw: data };
 }
 
+// Google Gemini (AI Studio). Free tier: rate-limited but no cost; auth is a
+// plain API key on the URL (?key=...), not a header. Verify current free-tier
+// model availability/limits at https://ai.google.dev/ if this default model
+// stops working — Google updates these over time.
+async function geminiAdapter(images, settings) {
+  const d     = PROVIDER_DEFAULTS.gemini;
+  const base  = (settings.baseUrl || d.baseUrl).replace(/\/+$/, '');
+  const model = settings.model || d.model;
+  const parts = images.map(im => ({ inline_data: { mime_type: im.mediaType, data: im.base64 } }));
+  parts.push({ text: 'Extract the values as specified and return the JSON object.' });
+  const url = `${base}/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(settings.apiKey)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts }],
+      systemInstruction: { parts: [{ text: EXTRACTION_PROMPT }] },
+      generationConfig: {
+        response_mime_type: 'application/json',
+        response_schema: GEMINI_FIELD_SCHEMA,
+      },
+    }),
+  });
+  if (!res.ok) throw await apiError(res, 'Gemini');
+  const data = await res.json();
+  const respParts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+  const text = respParts.map(p => p.text || '').join('\n');
+  return { parsed: parseModelJSON(text), raw: data };
+}
+
 async function extractWithAI(images, settings) {
   if (!settings.apiKey) throw new Error('No API key set. Open Settings and paste your key.');
   if (!images.length) throw new Error('No images to read.');
-  const provider = (settings.provider || 'claude').toLowerCase();
-  const result = provider === 'openai'
-    ? await openaiAdapter(images, settings)
-    : await claudeAdapter(images, settings);
+  const provider = (settings.provider || 'gemini').toLowerCase();
+  const result = provider === 'openai' ? await openaiAdapter(images, settings)
+               : provider === 'gemini' ? await geminiAdapter(images, settings)
+               : await claudeAdapter(images, settings);
   return {
     found: sanitizeFound(result.parsed),
     warning: result.parsed && result.parsed.notes ? String(result.parsed.notes) : null,
@@ -241,12 +299,19 @@ function setScanModeUI(mode) {
   }
 }
 
+function applyProviderPlaceholders() {
+  const d = PROVIDER_DEFAULTS[$('ai-provider').value] || PROVIDER_DEFAULTS.gemini;
+  $('ai-model').placeholder   = d.model;
+  $('ai-baseurl').placeholder = d.baseUrl;
+}
+
 function openAISettings(focusKey) {
   const s = getAISettings();
   $('ai-provider').value = s.provider;
   $('ai-key').value      = s.apiKey;
   $('ai-model').value    = s.model;
   $('ai-baseurl').value  = s.baseUrl;
+  applyProviderPlaceholders();
   $('ocr-settings-panel').style.display = '';
   [1, 2, 3].forEach(i => { $('ocr-step-' + i).style.display = 'none'; });
   $('ocr-consent').style.display = 'none';
@@ -286,6 +351,9 @@ function closeAIConsent() {
 function initAIControls() {
   const gear = $('ocr-settings-btn');
   if (gear) gear.addEventListener('click', () => openAISettings(false));
+
+  const providerSel = $('ai-provider');
+  if (providerSel) providerSel.addEventListener('change', applyProviderPlaceholders);
 
   document.querySelectorAll('.ocr-mode-btn').forEach(btn => {
     btn.addEventListener('click', () => setScanModeUI(btn.dataset.mode));

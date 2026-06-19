@@ -106,6 +106,7 @@
           <h3 class="ocr-settings-title">AI Settings</h3>
           <label class="ocr-settings-field">Provider
             <select id="ai-provider">
+              <option value="gemini">Google Gemini (free tier)</option>
               <option value="claude">Claude (Anthropic)</option>
               <option value="openai">OpenAI</option>
             </select>
@@ -114,10 +115,10 @@
             <input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="paste your key" />
           </label>
           <label class="ocr-settings-field">Model <span class="ocr-settings-opt">optional</span>
-            <input id="ai-model" type="text" autocomplete="off" spellcheck="false" placeholder="claude-opus-4-8" />
+            <input id="ai-model" type="text" autocomplete="off" spellcheck="false" placeholder="gemini-2.0-flash" />
           </label>
           <label class="ocr-settings-field">Base URL <span class="ocr-settings-opt">optional</span>
-            <input id="ai-baseurl" type="text" autocomplete="off" spellcheck="false" placeholder="https://api.anthropic.com" />
+            <input id="ai-baseurl" type="text" autocomplete="off" spellcheck="false" placeholder="https://generativelanguage.googleapis.com" />
           </label>
           <p class="ocr-settings-note">Your key is stored only in this browser (localStorage) and sent only to the provider you choose. Avoid using a shared key on a shared device.</p>
           <div class="ocr-settings-actions">
@@ -478,7 +479,7 @@
             <strong>Formula accuracy.</strong> Cardiac output is estimated using Fick's principle (CO = VO₂ / [(SaO₂ − SvO₂) × Hb × 13.4]) with VO₂ approximated as 125 × BSA (&lt;70 yr) or 110 × BSA (≥70 yr). These are established clinical estimates, not direct measurements. Actual values may differ based on patient condition, measurement technique, and equipment calibration.
           </p>
           <p class="disclaimer-footer-text">
-            <strong>Data handling.</strong> Calculations and <strong>Offline</strong> image processing run entirely within your browser. <strong>Cloud AI</strong> mode sends the image(s) you scan to the AI provider you configure (e.g. Anthropic or OpenAI) to extract values — those images leave your device and are subject to that provider's terms. Use Cloud AI with real patient data only if your agreement with the provider (e.g. a signed BAA) permits it; otherwise use Offline mode.
+            <strong>Data handling.</strong> Calculations and <strong>Offline</strong> image processing run entirely within your browser. <strong>Cloud AI</strong> mode sends the image(s) you scan to the AI provider you configure (e.g. Google, Anthropic, or OpenAI) to extract values — those images leave your device and are subject to that provider's terms. Use Cloud AI with real patient data only if your agreement with the provider (e.g. a signed BAA) permits it; otherwise use Offline mode.
           </p>
           <p class="disclaimer-footer-text disclaimer-footer-copy">
             FickCalc &copy; 2025 &nbsp;&middot;&nbsp; Fick's Principle Cardiac Output Estimator &nbsp;&middot;&nbsp; Use with caution in clinical settings
