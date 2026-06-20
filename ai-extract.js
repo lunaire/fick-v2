@@ -22,14 +22,13 @@ const FIELD_SCHEMA = {
     sao2:   { type: ['number', 'null'], description: 'Arterial O2 saturation: SaO2, SpO2/pulse-ox, or an explicitly ARTERIAL sample. Percent.' },
     svo2:   { type: ['number', 'null'], description: 'Mixed venous O2 saturation: SvO2, "SO2, Venous", PA/Swan/pulmonary-artery, mixed venous, or an explicitly VENOUS sample. Percent.' },
     hgb:    { type: ['number', 'null'], description: 'Hemoglobin (tHb / Hb / Hemoglobin). g/dL.' },
-    hr:     { type: ['number', 'null'], description: 'Heart rate. bpm.' },
     weight: { type: ['number', 'null'], description: 'Body weight. kg.' },
     height: { type: ['number', 'null'], description: 'Height. cm.' },
     bsa:    { type: ['number', 'null'], description: 'Body surface area. m^2.' },
     vo2:    { type: ['number', 'null'], description: 'Oxygen consumption VO2. mL/min.' },
     notes:  { type: ['string', 'null'], description: 'Short note on anything ambiguous, e.g. which image was the arterial vs venous sample.' },
   },
-  required: ['sao2', 'svo2', 'hgb', 'hr', 'weight', 'height', 'bsa', 'vo2'],
+  required: ['sao2', 'svo2', 'hgb', 'weight', 'height', 'bsa', 'vo2'],
 };
 
 // Gemini uses a different (OpenAPI-subset) schema dialect: singular uppercase
@@ -65,7 +64,6 @@ const EXTRACTION_PROMPT = [
   '- sao2: arterial O2 saturation (SaO2, or SpO2/pulse-ox, or an explicitly ARTERIAL sample), %',
   '- svo2: mixed venous O2 saturation (SvO2; "SO2, Venous"; PA/Swan/pulmonary-artery; mixed venous; or an explicitly VENOUS sample), %',
   '- hgb: hemoglobin (tHb / Hb / Hemoglobin), g/dL',
-  '- hr: heart rate, bpm',
   '- weight: kg ; height: cm ; bsa: m^2 ; vo2: mL/min',
   '',
   'Rules:',
@@ -158,7 +156,7 @@ function parseModelJSON(text) {
 }
 function sanitizeFound(obj) {
   const found = {};
-  ['sao2', 'svo2', 'hgb', 'hr', 'weight', 'height', 'bsa', 'vo2'].forEach(k => {
+  ['sao2', 'svo2', 'hgb', 'weight', 'height', 'bsa', 'vo2'].forEach(k => {
     let v = obj ? obj[k] : null;
     if (v === null || v === undefined || v === '') return;
     v = parseFloat(v);

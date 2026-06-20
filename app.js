@@ -133,9 +133,8 @@ function initCalculator() {
 
 // Accepted clinical input ranges (mirror the HTML min/max). Values outside
 // these are rejected so bad input (0, negatives, typos) can't produce
-// Infinity/NaN results — e.g. HR 0 → SV Infinity, BSA 0 → CI Infinity.
+// Infinity/NaN results — e.g. BSA 0 → CI Infinity.
 const INPUT_RANGES = {
-  hr:           [20, 300],
   sao2:         [20, 100],  // sat bounds mirror ocr.js SANITY (keep in sync)
   svo2:         [10, 100],
   hgb:          [1, 25],
@@ -146,7 +145,7 @@ const INPUT_RANGES = {
 };
 
 function validate() {
-  const required = ['hr','sao2','svo2','hgb'];
+  const required = ['sao2','svo2','hgb'];
   if (bsaMode === 'height') required.push('weight','height');
   else required.push('bsa-direct');
   if (vo2Mode === 'measured') required.push('vo2-direct');
@@ -176,7 +175,6 @@ function calculate() {
   if (!validate()) return;
 
   const age  = ageGroup === 'elderly' ? 70 : 50;  // proxy value — only determines 110 vs 125
-  const hr   = parseFloat($('hr').value);
   const sao2 = parseFloat($('sao2').value);
   const svo2 = parseFloat($('svo2').value);
   const hgb  = parseFloat($('hgb').value);
@@ -197,19 +195,17 @@ function calculate() {
 
   const { co, cao2, cvo2, avdO2 } = fick;
   const ci  = co / bsa;
-  const sv  = (co / hr) * 1000;
   const o2ext = ((cao2 - cvo2) / cao2) * 100;
 
-  displayResults({ co, ci, sv, bsa, vo2, cao2, cvo2, avdO2, o2ext, hr });
+  displayResults({ co, ci, bsa, vo2, cao2, cvo2, avdO2, o2ext });
 }
 
-function displayResults({ co, ci, sv, bsa, vo2, cao2, cvo2, avdO2, o2ext, hr }) {
+function displayResults({ co, ci, bsa, vo2, cao2, cvo2, avdO2, o2ext }) {
   $('results-placeholder').style.display = 'none';
   $('results-content').style.display = '';
 
   $('co-val').textContent = co.toFixed(2);
   $('ci-val').textContent = ci.toFixed(2);
-  $('sv-val').textContent = sv.toFixed(0);
   $('bsa-val').textContent = bsa.toFixed(2);
   $('vo2-result-val').textContent = vo2.toFixed(1);
   $('cao2-val').textContent = cao2.toFixed(2);
@@ -220,7 +216,6 @@ function displayResults({ co, ci, sv, bsa, vo2, cao2, cvo2, avdO2, o2ext, hr }) 
   // CO range reference labels
   $('co-range').textContent = 'Normal: 4–8 L/min';
   $('ci-range').textContent = 'Normal: 2.5–4 L/min/m²';
-  $('sv-range').textContent = 'Normal: 60–100 mL/beat';
 
   // Gauge: map CO 0-12 → 0-100%
   const gaugeWidth = Math.min(Math.max((co / 12) * 100, 2), 100);
@@ -228,7 +223,7 @@ function displayResults({ co, ci, sv, bsa, vo2, cao2, cvo2, avdO2, o2ext, hr }) 
 
   // Status
   const banner = $('status-banner');
-  const { cls, label, detail, interp } = interpret(co, ci, sv, o2ext);
+  const { cls, label, detail, interp } = interpret(co, ci, o2ext);
   banner.className = 'status-banner ' + cls;
   $('status-label').textContent = label;
   $('status-detail').textContent = detail;
@@ -243,7 +238,7 @@ function displayResults({ co, ci, sv, bsa, vo2, cao2, cvo2, avdO2, o2ext, hr }) 
   }
 }
 
-function interpret(co, ci, sv, o2ext) {
+function interpret(co, ci, o2ext) {
   let cls, label, detail;
   const lines = [];
 
@@ -261,9 +256,6 @@ function interpret(co, ci, sv, o2ext) {
     lines.push('<p>ℹ️ <strong>Elevated cardiac index</strong> (&gt;4.0 L/min/m²) — consider high-output states: sepsis, anemia, thyrotoxicosis, AV fistula.</p>');
   }
 
-  if (sv < 60) lines.push('<p>📉 <strong>Reduced stroke volume</strong> (&lt;60 mL/beat) — may reflect impaired contractility, dysrhythmia, or high afterload.</p>');
-  else if (sv > 100) lines.push('<p>📈 <strong>Elevated stroke volume</strong> (&gt;100 mL/beat) — consistent with high-output state or athletic physiology.</p>');
-
   if (o2ext > 35) lines.push('<p>🔴 <strong>High O₂ extraction</strong> (' + o2ext.toFixed(1) + '%) — tissues are extracting more oxygen to compensate for reduced delivery (DO₂/VO₂ mismatch).</p>');
   else if (o2ext < 20) lines.push('<p>🔵 <strong>Low O₂ extraction</strong> (' + o2ext.toFixed(1) + '%) — may indicate distributive shunting (e.g. sepsis) or high cardiac output.</p>');
 
@@ -271,7 +263,7 @@ function interpret(co, ci, sv, o2ext) {
 }
 
 function reset() {
-  ['age','weight','height','hr','sao2','svo2','hgb','vo2-direct','bsa-direct'].forEach(id => {
+  ['age','weight','height','sao2','svo2','hgb','vo2-direct','bsa-direct'].forEach(id => {
     const el = $(id);
     if (el) { el.value = ''; el.classList.remove('error'); el.removeAttribute('title'); }
   });

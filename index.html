@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Fick Cardiac Output Calculator</title>
-  <meta name="description" content="Calculate cardiac output, cardiac index, and stroke volume using Fick's formula. Supports camera-based OCR for automatic data entry." />
+  <meta name="description" content="Calculate cardiac output and cardiac index using Fick's formula. Supports camera-based OCR for automatic data entry." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -187,8 +187,6 @@
         </div>
         <div class="formula-sub-row">
           <span>CI = CO / BSA</span>
-          <span class="formula-dot">·</span>
-          <span>SV = CO / HR × 1000</span>
         </div>
       </div>
 
@@ -221,18 +219,11 @@
               </div>
             </div>
 
-            <div class="form-grid">
-              <div class="form-group">
-                <label class="form-label">Age Group <span class="label-hint">affects VO₂ estimate</span></label>
-                <div class="seg-ctrl" id="age-ctrl">
-                  <button class="seg-btn active" data-val="young" id="age-young-btn">&lt; 70 yo</button>
-                  <button class="seg-btn" data-val="elderly" id="age-elderly-btn">≥ 70 yo</button>
-                </div>
-              </div>
-
-              <div class="form-group">
-                <label for="hr" class="form-label">Heart Rate <span class="unit">(bpm)</span></label>
-                <input id="hr" type="number" class="form-input" placeholder="e.g. 72" min="20" max="300" step="1" />
+            <div class="form-group">
+              <label class="form-label">Age Group <span class="label-hint">affects VO₂ estimate</span></label>
+              <div class="seg-ctrl" id="age-ctrl">
+                <button class="seg-btn active" data-val="young" id="age-young-btn">&lt; 70 yo</button>
+                <button class="seg-btn" data-val="elderly" id="age-elderly-btn">≥ 70 yo</button>
               </div>
             </div>
 
@@ -382,12 +373,6 @@
                 <div class="result-unit">L/min/m²</div>
                 <div class="result-range" id="ci-range"></div>
               </div>
-              <div class="result-card result-card--tertiary">
-                <div class="result-label">Stroke Volume</div>
-                <div class="result-value" id="sv-val">—</div>
-                <div class="result-unit">mL/beat</div>
-                <div class="result-range" id="sv-range"></div>
-              </div>
             </div>
             <div class="card derived-card">
               <h4 class="derived-title">Intermediate Calculations</h4>
@@ -437,7 +422,7 @@
           <div class="ref-card">
             <h4 class="ref-card-title">BSA Formula</h4>
             <div class="ref-formula">BSA = √(Height cm × Weight kg / 3600)</div>
-            <p class="ref-desc">CI = CO / BSA &nbsp;·&nbsp; SV = CO / HR × 1000</p>
+            <p class="ref-desc">CI = CO / BSA</p>
           </div>
         </div>
       </section>

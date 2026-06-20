@@ -7,7 +7,6 @@ const OCR_FIELDS = [
   { key: 'sao2',   label: 'Arterial SaO\u2082',    unit: '%',      },
   { key: 'svo2',   label: 'Mixed Venous SvO\u2082', unit: '%',      },
   { key: 'hgb',    label: 'Hemoglobin',          unit: 'g/dL',   },
-  { key: 'hr',     label: 'Heart Rate',           unit: 'bpm',    },
   { key: 'weight', label: 'Weight',               unit: 'kg',     },
   { key: 'height', label: 'Height',               unit: 'cm',     },
   { key: 'bsa',    label: 'BSA',                  unit: 'm\u00b2',     },
@@ -50,11 +49,6 @@ const OCR_PATTERNS = {
     /\b(?:H(?:gb|b|emoglobin)|HGB|HB)\s*[:\|]?\s*([\d]{1,2}(?:\.[\d]{1,2})?)\s*(?:g\/d[Ll]|gm\/dL)?/i,
     /\bH(?:gb|b)\b\s+([\d]{1,2}(?:\.[\d])?)/i,
   ],
-  hr: [
-    // Must require "Heart" before "Rate" — bare "Rate" is respiratory rate in Epic
-    /(?:Heart\s*Rate|HR|Pulse\s*Rate)\s*[:\|]?\s*([\d]{2,3})\s*(?:bpm|\/min)?/i,
-    /\bHR\b\s+([\d]{2,3})\b/i,
-  ],
   weight: [
     // Epic: "Last Weight  56.2 kg"
     /Last\s+Weight\s*[:\|]?\s*([\d]{2,3}(?:\.[\d]{1,2})?)\s*(?:kg|KG)/i,
@@ -79,7 +73,6 @@ const SANITY = {
   sao2:   v => v > 20  && v <= 100,
   svo2:   v => v > 10  && v <= 100,
   hgb:    v => v > 2   && v < 25,
-  hr:     v => v >= 20 && v <= 300,
   weight: v => v >= 5  && v <= 300,
   height: v => v >= 50 && v <= 250,
   bsa:    v => v >= 0.5 && v <= 3.5,
@@ -650,7 +643,6 @@ function applyOCRValues() {
     sao2:   'sao2',
     svo2:   'svo2',
     hgb:    'hgb',
-    hr:     'hr',
     weight: 'weight',
     height: 'height',
     bsa:    'bsa-direct',
