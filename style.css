@@ -667,3 +667,45 @@ a:focus-visible,
 /* ===== HT/WT TOGGLE BLOCK ===== */
 .bsa-toggle-block { margin-top: 4px; }
 .htwt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
+
+/* ===== START / "BEGIN ENTRY" POPUP ===== */
+.start-overlay {
+  position: fixed; inset: 0; z-index: 1100;
+  background: rgba(0,0,0,0.78); backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  padding: 20px;
+}
+.start-overlay.open { opacity: 1; pointer-events: auto; }
+.start-card {
+  background: var(--surface); border: 1px solid rgba(99,102,241,0.25);
+  border-radius: 20px; width: 100%; max-width: 380px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  padding: 32px 28px; text-align: center;
+  transform: translateY(16px); transition: transform 0.25s;
+}
+.start-overlay.open .start-card { transform: translateY(0); }
+.start-icon {
+  width: 52px; height: 52px; margin: 0 auto 16px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 14px; color: var(--indigo);
+  background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(192,132,252,0.14));
+  border: 1px solid rgba(99,102,241,0.3);
+}
+.start-icon svg { width: 26px; height: 26px; }
+.start-title { font-size: 1.15rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.start-text { font-size: 0.82rem; color: var(--text-dim); line-height: 1.6; margin-bottom: 22px; }
+.start-text kbd {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.72rem;
+  background: var(--surface-3); border: 1px solid var(--border);
+  border-radius: 5px; padding: 1px 6px; color: var(--text);
+}
+.start-btn {
+  width: 100%; padding: 13px 24px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+  border: none; border-radius: var(--radius);
+  color: #fff; font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600;
+  cursor: pointer; transition: all 0.25s; box-shadow: 0 4px 20px rgba(99,102,241,0.35);
+}
+.start-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(99,102,241,0.5); filter: brightness(1.1); }
+.start-btn:active { transform: translateY(0); }

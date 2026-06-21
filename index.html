@@ -17,6 +17,18 @@
   <div class="bg-orb orb-2"></div>
   <div class="bg-orb orb-3"></div>
 
+  <!-- Start / "Begin entry" popup -->
+  <div class="start-overlay" id="start-overlay" role="dialog" aria-modal="true" aria-labelledby="start-title">
+    <div class="start-card">
+      <div class="start-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2v4M16 2v4"/><path d="M3 10h18"/><path d="M5 6h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" opacity="0.4"/><polyline points="9 14 11 16 15 12"/></svg>
+      </div>
+      <h2 class="start-title" id="start-title">Ready to calculate CO</h2>
+      <p class="start-text">Enter values with <kbd>Tab</kbd> and the number keys, then press <kbd>Enter</kbd>.</p>
+      <button class="start-btn" id="start-begin-btn">Begin entry</button>
+    </div>
+  </div>
+
   <!-- OCR Modal -->
   <div class="ocr-overlay" id="ocr-overlay">
     <div class="ocr-modal">
@@ -220,10 +232,10 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">Age Group <span class="label-hint">affects VO₂ estimate</span></label>
-              <div class="seg-ctrl" id="age-ctrl">
-                <button class="seg-btn active" data-val="young" id="age-young-btn">&lt; 70 yo</button>
-                <button class="seg-btn" data-val="elderly" id="age-elderly-btn">≥ 70 yo</button>
+              <label class="form-label" id="age-ctrl-label">Age Group <span class="label-hint">affects VO₂ estimate</span></label>
+              <div class="seg-ctrl" id="age-ctrl" role="radiogroup" aria-labelledby="age-ctrl-label">
+                <button class="seg-btn active" data-val="young" id="age-young-btn" role="radio" aria-checked="true" tabindex="0">&lt; 70 yo</button>
+                <button class="seg-btn" data-val="elderly" id="age-elderly-btn" role="radio" aria-checked="false" tabindex="-1">≥ 70 yo</button>
               </div>
             </div>
 
@@ -232,8 +244,8 @@
               <div class="field-toggle-header">
                 <label class="form-label" id="bsa-height-label">BSA <span class="unit">(m²)</span></label>
                 <div class="seg-ctrl seg-ctrl--mini" id="bsa-mode-ctrl">
-                  <button class="seg-btn" data-val="height" id="bsa-height-btn">Ht / Wt</button>
-                  <button class="seg-btn active" data-val="bsa" id="bsa-direct-btn">BSA</button>
+                  <button class="seg-btn" data-val="height" id="bsa-height-btn" tabindex="-1">Ht / Wt</button>
+                  <button class="seg-btn active" data-val="bsa" id="bsa-direct-btn" tabindex="-1">BSA</button>
                 </div>
               </div>
 
@@ -257,6 +269,46 @@
 
           </div>
 
+          <!-- Hemoglobin -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-icon card-icon--purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="10" ry="6"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+              </div>
+              <div>
+                <h3 class="card-title">Hemoglobin</h3>
+                <p class="card-desc">Blood hemoglobin concentration</p>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="hgb" class="form-label">Hemoglobin <span class="unit">(g/dL)</span></label>
+              <input id="hgb" type="number" class="form-input" placeholder="e.g. 14" min="1" max="25" step="0.1" />
+            </div>
+          </div>
+
+          <!-- O2 Saturations -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-icon card-icon--red">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              </div>
+              <div>
+                <h3 class="card-title">Oxygen Saturations</h3>
+                <p class="card-desc">Mixed venous / pulmonary arterial and arterial</p>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="svo2" class="form-label">Mixed Venous SvO₂ <span class="unit">(%)</span><span class="label-hint">Pulmonary artery</span></label>
+                <input id="svo2" type="number" class="form-input" placeholder="e.g. 65" min="10" max="100" step="0.1" />
+              </div>
+              <div class="form-group">
+                <label for="sao2" class="form-label">Arterial SaO₂ <span class="unit">(%)</span><span class="label-hint">Systemic arterial blood</span></label>
+                <input id="sao2" type="number" class="form-input" placeholder="e.g. 98" min="20" max="100" step="0.1" />
+              </div>
+            </div>
+          </div>
+
           <!-- Oxygen Consumption -->
           <div class="card">
             <div class="card-header">
@@ -269,8 +321,8 @@
               </div>
             </div>
             <div class="seg-ctrl-full" id="vo2-mode-ctrl">
-              <button class="seg-btn-full active" data-val="estimate" id="vo2-estimate-btn">Estimate (125×BSA)</button>
-              <button class="seg-btn-full" data-val="measured" id="vo2-measured-btn">Enter Directly</button>
+              <button class="seg-btn-full active" data-val="estimate" id="vo2-estimate-btn" tabindex="-1">Estimate (125×BSA)</button>
+              <button class="seg-btn-full" data-val="measured" id="vo2-measured-btn" tabindex="-1">Enter Directly</button>
             </div>
             <div id="vo2-estimated-section">
               <div class="info-box">
@@ -288,46 +340,6 @@
                 <label for="vo2-direct" class="form-label">VO₂ <span class="unit">(mL/min)</span></label>
                 <input id="vo2-direct" type="number" class="form-input" placeholder="e.g. 250" min="50" max="2000" step="1" />
               </div>
-            </div>
-          </div>
-
-          <!-- O2 Saturations -->
-          <div class="card">
-            <div class="card-header">
-              <div class="card-icon card-icon--red">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-              </div>
-              <div>
-                <h3 class="card-title">Oxygen Saturations</h3>
-                <p class="card-desc">Arterial and mixed venous / pulmonary arterial</p>
-              </div>
-            </div>
-            <div class="form-grid">
-              <div class="form-group">
-                <label for="sao2" class="form-label">Arterial SaO₂ <span class="unit">(%)</span><span class="label-hint">Systemic arterial blood</span></label>
-                <input id="sao2" type="number" class="form-input" placeholder="e.g. 98" min="20" max="100" step="0.1" />
-              </div>
-              <div class="form-group">
-                <label for="svo2" class="form-label">Mixed Venous SvO₂ <span class="unit">(%)</span><span class="label-hint">Pulmonary artery</span></label>
-                <input id="svo2" type="number" class="form-input" placeholder="e.g. 65" min="10" max="100" step="0.1" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Hemoglobin -->
-          <div class="card">
-            <div class="card-header">
-              <div class="card-icon card-icon--purple">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="10" ry="6"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
-              </div>
-              <div>
-                <h3 class="card-title">Hemoglobin</h3>
-                <p class="card-desc">Blood hemoglobin concentration</p>
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="hgb" class="form-label">Hemoglobin <span class="unit">(g/dL)</span></label>
-              <input id="hgb" type="number" class="form-input" placeholder="e.g. 14" min="1" max="25" step="0.1" />
             </div>
           </div>
 
@@ -399,7 +411,7 @@
 
       <!-- Reference Section -->
       <section class="reference-section">
-        <button class="ref-toggle" id="ref-toggle" aria-expanded="false">
+        <button class="ref-toggle" id="ref-toggle" aria-expanded="false" tabindex="-1">
           <span>Formula Reference</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
@@ -429,7 +441,7 @@
 
       <!-- Mobile bottom action bar -->
       <div class="mobile-action-bar" id="mobile-action-bar">
-        <button class="mob-scan-btn" id="mob-scan-btn">
+        <button class="mob-scan-btn" id="mob-scan-btn" tabindex="-1">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
           Scan
         </button>

@@ -18,18 +18,33 @@ document.addEventListener('DOMContentLoaded', () => {
   initMobileTabs();
   initMobileActionBar();
   initRefToggle();
+  initStartPopup();
+  showStartPopup();
 });
 
 // ===== SEGMENTED CONTROLS =====
 function initSegControls() {
-  // Age group
-  $('age-ctrl').querySelectorAll('.seg-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      $('age-ctrl').querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      ageGroup = btn.dataset.val;
-      updateVO2Preview();
+  // Age group — a radiogroup with roving tabindex: it's a single Tab stop in the
+  // streamlined entry flow, but still switchable via Arrow keys or click.
+  const ageBtns = Array.from($('age-ctrl').querySelectorAll('.seg-btn'));
+  function selectAge(btn, focus) {
+    ageBtns.forEach(b => {
+      const on = b === btn;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+      b.tabIndex = on ? 0 : -1;
     });
+    ageGroup = btn.dataset.val;
+    updateVO2Preview();
+    if (focus) btn.focus();
+  }
+  ageBtns.forEach(btn => btn.addEventListener('click', () => selectAge(btn, false)));
+  $('age-ctrl').addEventListener('keydown', e => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+    e.preventDefault();
+    const idx = ageBtns.findIndex(b => b.classList.contains('active'));
+    const dir = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : -1;
+    selectAge(ageBtns[(idx + dir + ageBtns.length) % ageBtns.length], true);
   });
 
   // BSA mode
@@ -129,6 +144,36 @@ function calcFick({ vo2, sao2, svo2, hgb }) {
 function initCalculator() {
   $('calc-btn').addEventListener('click', calculate);
   $('reset-btn').addEventListener('click', reset);
+  // Pressing Enter in any value field submits — keeps the keyboard entry flow fast
+  // (finish at SaO₂, hit Enter; tabbing to the Calculate button still works too).
+  ['bsa-direct', 'hgb', 'svo2', 'sao2', 'vo2-direct', 'height', 'weight'].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); calculate(); }
+    });
+  });
+}
+
+// ===== START POPUP =====
+// A one-button "Begin entry" gate shown on load and after Reset. It launches the
+// keyboard-first flow: pressing Enter (the button is autofocused) closes it and
+// focuses the first field (age group).
+function initStartPopup() {
+  $('start-begin-btn')?.addEventListener('click', beginEntry);
+  $('start-overlay')?.addEventListener('keydown', e => {
+    if (e.key === 'Escape') beginEntry();
+  });
+}
+function showStartPopup() {
+  const overlay = $('start-overlay');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  setTimeout(() => $('start-begin-btn')?.focus(), 0);
+}
+function beginEntry() {
+  $('start-overlay')?.classList.remove('open');
+  // Focus the first field — the active age-group button.
+  ($('age-ctrl')?.querySelector('.seg-btn.active') || $('age-young-btn'))?.focus();
 }
 
 // Accepted clinical input ranges (mirror the HTML min/max). Values outside
@@ -280,6 +325,8 @@ function reset() {
   const badge = $('tab-result-badge'); if (badge) badge.style.display = 'none';
   // On mobile, switch back to inputs tab
   if (isMobile()) switchTab('inputs-panel');
+  // Re-show the start popup so the next entry begins from the same keyboard flow
+  showStartPopup();
 }
 
 // ===== MOBILE UTILITIES =====
