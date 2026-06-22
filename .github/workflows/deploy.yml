@@ -1,0 +1,44 @@
+name: Deploy to aclinicaltool.com
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'index.html'
+      - 'app.js'
+      - 'style.css'
+      - 'ocr.js'
+      - 'ocr.css'
+      - 'ai-extract.js'
+      - 'vendor/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build app bundle
+        run: |
+          mkdir bundle
+          cp index.html app.js style.css ocr.js ocr.css ai-extract.js bundle/
+          cp -r vendor bundle/vendor
+          (cd bundle && zip -r ../fick-app.zip .)
+
+      - name: Upload to aclinicaltool.com
+        env:
+          ADMIN_TOKEN: ${{ secrets.ACLINICALTOOL_ADMIN_TOKEN }}
+        run: |
+          curl --fail-with-body -sS -X PUT https://aclinicaltool.com/api/admin/upload \
+            -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+            -H "X-File-Name: fick-app.zip" \
+            -H "X-File-Title: Fick Cardiac Output Calculator" \
+            -H "X-File-Description: Calculate cardiac output, cardiac index, and oxygen extraction using the Fick principle. Includes camera/AI-assisted extraction of lab values from reports or monitor photos." \
+            -H "X-File-Category: app" \
+            -H "X-File-Type: Calculator" \
+            -H "X-File-Tags: cardiac-output,hemodynamics,fick,clinical-calculator" \
+            -H "Content-Type: application/zip" \
+            --data-binary @fick-app.zip
