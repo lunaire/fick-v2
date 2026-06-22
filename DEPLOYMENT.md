@@ -16,13 +16,26 @@ It:
 
 1. Zips `index.html`, `app.js`, `style.css`, `ocr.js`, `ocr.css`, `ai-extract.js`, and `vendor/**`
    (the offline Tesseract OCR assets).
-2. `PUT`s the zip to the Worker's `/api/admin/upload` endpoint with metadata headers.
+2. `PUT`s the zip to the Worker's `/api/admin/upload` endpoint with metadata headers, via the
+   Worker's **`workers.dev` URL** (`https://aclinicaltool.andrewchris.workers.dev`), not the
+   `aclinicaltool.com` custom domain.
 
 The Worker matches the upload to the existing catalog entry **by title**
 ("Fick Cardiac Output Calculator"), so this always updates the same tool in place — same slug,
-same public URL, no duplicates.
+same public URL, no duplicates. The *served* app is still reached at the normal
+`aclinicaltool.com` URL either way; only the admin upload request itself uses `workers.dev`.
 
 **Bottom line: pushing to `master` is enough.** No manual zip/upload step needed anymore.
+
+### Why `workers.dev` and not `aclinicaltool.com`
+
+`aclinicaltool.com` has Cloudflare's **Bot Fight Mode** enabled at the zone level, which issues a
+Managed Challenge (a JS challenge page, HTTP 403) to requests from datacenter/CI IP ranges —
+including GitHub Actions runners. A script can't solve that challenge, so the upload always failed
+with a 403 from `curl`. Bot Fight Mode (the free-plan product) can't be exempted per-path via WAF
+Custom Rules — only its paid sibling "Super Bot Fight Mode" supports that. Requests to the Worker's
+`workers.dev` subdomain bypass the zone's Cloudflare proxy (and therefore Bot Fight Mode) entirely,
+so that's what the workflow uses instead. No site-wide security setting had to change.
 
 ## The admin secret
 
@@ -45,7 +58,7 @@ If the Action ever fails, the same upload can be done by hand from a Linux/macOS
 
 ```bash
 zip -r fick-app.zip index.html app.js style.css ocr.js ocr.css ai-extract.js vendor
-curl -X PUT https://aclinicaltool.com/api/admin/upload \
+curl -X PUT https://aclinicaltool.andrewchris.workers.dev/api/admin/upload \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "X-File-Name: fick-app.zip" \
   -H "X-File-Title: Fick Cardiac Output Calculator" \

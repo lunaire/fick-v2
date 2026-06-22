@@ -32,7 +32,7 @@ jobs:
         env:
           ADMIN_TOKEN: ${{ secrets.ACLINICALTOOL_ADMIN_TOKEN }}
         run: |
-          curl --fail-with-body -sS -X PUT https://aclinicaltool.com/api/admin/upload \
+          curl --fail-with-body -sS -X PUT https://aclinicaltool.andrewchris.workers.dev/api/admin/upload \
             -H "Authorization: Bearer ${ADMIN_TOKEN}" \
             -H "X-File-Name: fick-app.zip" \
             -H "X-File-Title: Fick Cardiac Output Calculator" \
