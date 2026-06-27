@@ -10,7 +10,9 @@ on:
       - 'ocr.js'
       - 'ocr.css'
       - 'ai-extract.js'
+      - 'manifest.json'
       - 'vendor/**'
+      - 'icons/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch: {}
 
@@ -24,8 +26,10 @@ jobs:
       - name: Build app bundle
         run: |
           mkdir bundle
-          cp index.html app.js style.css ocr.js ocr.css ai-extract.js bundle/
+          cp index.html app.js style.css ocr.js ocr.css ai-extract.js manifest.json bundle/
           cp -r vendor bundle/vendor
+          mkdir bundle/icons
+          cp icons/favicon-16x16.png icons/favicon-32x32.png icons/favicon-48x48.png icons/apple-touch-icon.png icons/icon-192.png icons/icon-512.png bundle/icons/
           (cd bundle && zip -r ../fick-app.zip .)
 
       - name: Upload to aclinicaltool.com

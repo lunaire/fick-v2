@@ -14,8 +14,10 @@ This app lives in two places, kept in sync automatically:
 touches an app file (or manually: GitHub → Actions → "Deploy to aclinicaltool.com" → Run workflow).
 It:
 
-1. Zips `index.html`, `app.js`, `style.css`, `ocr.js`, `ocr.css`, `ai-extract.js`, and `vendor/**`
-   (the offline Tesseract OCR assets).
+1. Zips `index.html`, `app.js`, `style.css`, `ocr.js`, `ocr.css`, `ai-extract.js`, `manifest.json`,
+   `vendor/**` (the offline Tesseract OCR assets), and the favicon/touch-icon files from `icons/`
+   (`icons/icon-master.png`, the uncropped source, is intentionally left out of the bundle — it's
+   only kept in the repo to regenerate the other sizes from later).
 2. `PUT`s the zip to the Worker's `/api/admin/upload` endpoint with metadata headers, via the
    Worker's **`workers.dev` URL** (`https://aclinicaltool.andrewchris.workers.dev`), not the
    `aclinicaltool.com` custom domain.
@@ -57,7 +59,9 @@ it's ever lost, set a new one in both places.)
 If the Action ever fails, the same upload can be done by hand from a Linux/macOS/WSL/Git-Bash shell:
 
 ```bash
-zip -r fick-app.zip index.html app.js style.css ocr.js ocr.css ai-extract.js vendor
+zip -r fick-app.zip index.html app.js style.css ocr.js ocr.css ai-extract.js manifest.json vendor \
+  icons/favicon-16x16.png icons/favicon-32x32.png icons/favicon-48x48.png icons/apple-touch-icon.png \
+  icons/icon-192.png icons/icon-512.png
 curl -X PUT https://aclinicaltool.andrewchris.workers.dev/api/admin/upload \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "X-File-Name: fick-app.zip" \

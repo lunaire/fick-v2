@@ -1,0 +1,13 @@
+{
+  "name": "Fick Cardiac Output Calculator",
+  "short_name": "Fick CO",
+  "description": "Calculate cardiac output and cardiac index using Fick's formula. Supports camera-based OCR for automatic data entry.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#070b14",
+  "theme_color": "#d8141e",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
