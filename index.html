@@ -225,56 +225,6 @@
         <!-- LEFT: Inputs -->
         <div class="inputs-panel">
 
-          <!-- Patient Demographics -->
-          <div class="card">
-            <div class="card-header">
-              <div class="card-icon card-icon--blue">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              </div>
-              <div>
-                <h3 class="card-title">Patient Demographics</h3>
-                <p class="card-desc">Used for BSA and VO₂ estimation</p>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" id="age-ctrl-label">Age Group <span class="label-hint">affects VO₂ estimate</span></label>
-              <div class="seg-ctrl" id="age-ctrl" role="radiogroup" aria-labelledby="age-ctrl-label">
-                <button class="seg-btn active" data-val="young" id="age-young-btn" role="radio" aria-checked="true" tabindex="0">&lt; 70 yo</button>
-                <button class="seg-btn" data-val="elderly" id="age-elderly-btn" role="radio" aria-checked="false" tabindex="-1">≥ 70 yo</button>
-              </div>
-            </div>
-
-            <!-- BSA / Height+Weight Toggle — full width -->
-            <div class="form-group bsa-toggle-block">
-              <div class="field-toggle-header">
-                <label class="form-label" id="bsa-height-label">BSA <span class="unit">(m²)</span></label>
-                <div class="seg-ctrl seg-ctrl--mini" id="bsa-mode-ctrl">
-                  <button class="seg-btn" data-val="height" id="bsa-height-btn" tabindex="-1">Ht / Wt</button>
-                  <button class="seg-btn active" data-val="bsa" id="bsa-direct-btn" tabindex="-1">BSA</button>
-                </div>
-              </div>
-
-              <!-- BSA mode: single input -->
-              <div id="bsa-input-wrap">
-                <input id="bsa-direct" type="number" class="form-input" placeholder="e.g. 1.85" min="0.5" max="3.5" step="0.01" />
-              </div>
-
-              <!-- Ht/Wt mode: two inputs side by side -->
-              <div id="height-input-wrap" style="display:none" class="htwt-grid">
-                <div class="form-group">
-                  <label for="height" class="form-label">Height <span class="unit">(cm)</span></label>
-                  <input id="height" type="number" class="form-input" placeholder="e.g. 170" min="50" max="250" step="1" />
-                </div>
-                <div class="form-group">
-                  <label for="weight" class="form-label">Weight <span class="unit">(kg)</span></label>
-                  <input id="weight" type="number" class="form-input" placeholder="e.g. 70" min="1" max="300" step="0.1" />
-                </div>
-              </div>
-            </div>
-
-          </div>
-
           <!-- Hemoglobin -->
           <div class="card">
             <div class="card-header">
@@ -313,6 +263,56 @@
                 <input id="sao2" type="number" class="form-input" placeholder="e.g. 98" min="20" max="100" step="0.1" />
               </div>
             </div>
+          </div>
+
+          <!-- Patient Demographics (optional) -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-icon card-icon--blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <div>
+                <h3 class="card-title">Patient Demographics</h3>
+                <p class="card-desc">Optional — add BSA to also get cardiac output</p>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" id="age-ctrl-label">Age Group <span class="label-hint">affects VO₂ estimate</span></label>
+              <div class="seg-ctrl" id="age-ctrl" role="radiogroup" aria-labelledby="age-ctrl-label">
+                <button class="seg-btn active" data-val="young" id="age-young-btn" role="radio" aria-checked="true" tabindex="0">&lt; 70 yo</button>
+                <button class="seg-btn" data-val="elderly" id="age-elderly-btn" role="radio" aria-checked="false" tabindex="-1">≥ 70 yo</button>
+              </div>
+            </div>
+
+            <!-- BSA / Height+Weight Toggle — full width -->
+            <div class="form-group bsa-toggle-block">
+              <div class="field-toggle-header">
+                <label class="form-label" id="bsa-height-label">BSA <span class="unit">(m²)</span><span class="label-hint">optional — for CO</span></label>
+                <div class="seg-ctrl seg-ctrl--mini" id="bsa-mode-ctrl">
+                  <button class="seg-btn" data-val="height" id="bsa-height-btn" tabindex="-1">Ht / Wt</button>
+                  <button class="seg-btn active" data-val="bsa" id="bsa-direct-btn" tabindex="-1">BSA</button>
+                </div>
+              </div>
+
+              <!-- BSA mode: single input -->
+              <div id="bsa-input-wrap">
+                <input id="bsa-direct" type="number" class="form-input" placeholder="e.g. 1.85" min="0.5" max="3.5" step="0.01" />
+              </div>
+
+              <!-- Ht/Wt mode: two inputs side by side -->
+              <div id="height-input-wrap" style="display:none" class="htwt-grid">
+                <div class="form-group">
+                  <label for="height" class="form-label">Height <span class="unit">(cm)</span></label>
+                  <input id="height" type="number" class="form-input" placeholder="e.g. 170" min="50" max="250" step="1" />
+                </div>
+                <div class="form-group">
+                  <label for="weight" class="form-label">Weight <span class="unit">(kg)</span></label>
+                  <input id="weight" type="number" class="form-input" placeholder="e.g. 70" min="1" max="300" step="0.1" />
+                </div>
+              </div>
+            </div>
+
           </div>
 
           <!-- Oxygen Consumption -->
@@ -366,7 +366,7 @@
               <svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="28" fill="url(#phg)" opacity="0.15"/><path d="M16 34l6-12 6 18 6-24 6 18 6-8 6 6" stroke="url(#phg)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="phg" x1="16" y1="16" x2="48" y2="48"><stop stop-color="#818cf8"/><stop offset="1" stop-color="#c084fc"/></linearGradient></defs></svg>
             </div>
             <p class="placeholder-title">Results will appear here</p>
-            <p class="placeholder-text">Fill in the patient values and click <strong>Calculate Cardiac Output</strong>, or use <strong>Scan Report</strong> to extract values from an image.</p>
+            <p class="placeholder-text">Enter <strong>Hemoglobin</strong>, <strong>SvO₂</strong> and <strong>SaO₂</strong> and the cardiac index appears automatically. Add BSA for cardiac output, or use <strong>Scan Report</strong> to extract values from an image.</p>
           </div>
 
           <div class="results-content" id="results-content" style="display:none">
@@ -379,17 +379,17 @@
             </div>
             <div class="results-grid">
               <div class="result-card result-card--primary">
-                <div class="result-label">Cardiac Output</div>
-                <div class="result-value" id="co-val">—</div>
-                <div class="result-unit">L/min</div>
-                <div class="result-range" id="co-range"></div>
-                <div class="result-gauge-wrap"><div class="result-gauge" id="co-gauge"></div></div>
-              </div>
-              <div class="result-card result-card--secondary">
                 <div class="result-label">Cardiac Index</div>
                 <div class="result-value" id="ci-val">—</div>
                 <div class="result-unit">L/min/m²</div>
                 <div class="result-range" id="ci-range"></div>
+                <div class="result-gauge-wrap"><div class="result-gauge" id="co-gauge"></div></div>
+              </div>
+              <div class="result-card result-card--secondary">
+                <div class="result-label">Cardiac Output</div>
+                <div class="result-value" id="co-val">—</div>
+                <div class="result-unit">L/min</div>
+                <div class="result-range" id="co-range"></div>
               </div>
             </div>
             <div class="card derived-card">

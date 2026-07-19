@@ -36,6 +36,7 @@ function initSegControls() {
     });
     ageGroup = btn.dataset.val;
     updateVO2Preview();
+    maybeAutoCalc();
     if (focus) btn.focus();
   }
   ageBtns.forEach(btn => btn.addEventListener('click', () => selectAge(btn, false)));
@@ -57,9 +58,10 @@ function initSegControls() {
       $('bsa-input-wrap').style.display   = bsaMode === 'bsa'    ? '' : 'none';
       const lbl = $('bsa-height-label');
       lbl.innerHTML = bsaMode === 'height'
-        ? 'Height / Weight'
-        : 'BSA <span class="unit">(m²)</span>';
+        ? 'Height / Weight <span class="label-hint">optional — for CO</span>'
+        : 'BSA <span class="unit">(m²)</span><span class="label-hint">optional — for CO</span>';
       updateVO2Preview();
+      maybeAutoCalc();
     });
   });
 }
@@ -73,6 +75,7 @@ function initVO2Mode() {
       vo2Mode = btn.dataset.val;
       $('vo2-estimated-section').style.display = vo2Mode === 'estimate' ? '' : 'none';
       $('vo2-measured-section').style.display  = vo2Mode === 'measured' ? '' : 'none';
+      maybeAutoCalc();
     });
   });
 }
@@ -148,9 +151,13 @@ function initCalculator() {
   // (finish at SaO₂, hit Enter; tabbing to the Calculate button still works too).
   ['bsa-direct', 'hgb', 'svo2', 'sao2', 'vo2-direct', 'height', 'weight'].forEach(id => {
     const el = $(id);
-    if (el) el.addEventListener('keydown', e => {
+    if (!el) return;
+    el.addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); calculate(); }
     });
+    // Live auto-calculate: CI appears as soon as the core values are valid, and
+    // entering BSA (or switching VO₂ inputs) upgrades the output in place.
+    el.addEventListener('input', maybeAutoCalc);
   });
 }
 
@@ -172,8 +179,9 @@ function showStartPopup() {
 }
 function beginEntry() {
   $('start-overlay')?.classList.remove('open');
-  // Focus the first field — the active age-group button.
-  ($('age-ctrl')?.querySelector('.seg-btn.active') || $('age-young-btn'))?.focus();
+  // Focus the first field of the fast path — Hemoglobin. The three core values
+  // (Hgb → SvO₂ → SaO₂) follow in DOM/tab order and auto-produce the cardiac index.
+  $('hgb')?.focus();
 }
 
 // Accepted clinical input ranges (mirror the HTML min/max). Values outside
@@ -189,118 +197,185 @@ const INPUT_RANGES = {
   'vo2-direct': [50, 2000],
 };
 
-function validate() {
-  const required = ['sao2','svo2','hgb'];
-  if (bsaMode === 'height') required.push('weight','height');
-  else required.push('bsa-direct');
-  if (vo2Mode === 'measured') required.push('vo2-direct');
+// --- Pure field predicates (no DOM mutation) — shared by loud validate() and
+//     the silent auto-calc gate. A field is valid when it's a number within its
+//     range; an empty field is valid only when not required.
+function fieldEmpty(id) { const el = $(id); return !el || !el.value; }
+function fieldOutOfRange(id) {
+  const el = $(id); if (!el) return false;
+  const v = parseFloat(el.value); const range = INPUT_RANGES[id];
+  return !!range && !isNaN(v) && (v < range[0] || v > range[1]);
+}
+function fieldValid(id, requirePresent) {
+  if (fieldEmpty(id)) return !requirePresent;
+  const v = parseFloat($(id).value);
+  if (isNaN(v)) return false;
+  return !fieldOutOfRange(id);
+}
 
+// Loud check on one field: apply error/shake styling + range hint. Returns validity.
+function checkField(id, requirePresent) {
+  const el = $(id);
+  if (!el) return true;
+  const ok = fieldValid(id, requirePresent);
+  if (ok) {
+    el.classList.remove('error');
+    el.removeAttribute('title');
+  } else {
+    el.classList.add('error', 'shake');
+    if (fieldOutOfRange(id)) { const r = INPUT_RANGES[id]; el.title = `Expected ${r[0]}–${r[1]}`; }
+    setTimeout(() => el.classList.remove('shake'), 500);
+  }
+  return ok;
+}
+
+// Loud validation for the explicit Calculate action. BSA is optional now:
+// only the three core values (and VO₂ in measured mode) are required.
+function validate() {
   let valid = true;
-  required.forEach(id => {
-    const el = $(id);
-    if (!el) return;
-    const v = parseFloat(el.value);
-    const range = INPUT_RANGES[id];
-    const outOfRange = range && (v < range[0] || v > range[1]);
-    if (!el.value || isNaN(v) || outOfRange) {
-      el.classList.add('error');
-      el.classList.add('shake');
-      if (outOfRange) el.title = `Expected ${range[0]}–${range[1]}`;
-      setTimeout(() => el.classList.remove('shake'), 500);
-      valid = false;
-    } else {
-      el.classList.remove('error');
-      el.removeAttribute('title');
-    }
-  });
+  ['sao2', 'svo2', 'hgb'].forEach(id => { if (!checkField(id, true)) valid = false; });
+  if (vo2Mode === 'measured' && !checkField('vo2-direct', true)) valid = false;
+  if (bsaMode === 'bsa') {
+    if (!checkField('bsa-direct', false)) valid = false;          // optional; range-check if present
+  } else {
+    // Height mode: one value alone can't yield BSA, so if either is present require both.
+    const requireBoth = !fieldEmpty('height') || !fieldEmpty('weight');
+    if (!checkField('height', requireBoth)) valid = false;
+    if (!checkField('weight', requireBoth)) valid = false;
+  }
   return valid;
 }
 
+// Silent gate for auto-calc: are the inputs sufficient to compute (no styling)?
+function inputsReadyForAutoCalc() {
+  if (!['sao2', 'svo2', 'hgb'].every(id => fieldValid(id, true))) return false;
+  if (vo2Mode === 'measured' && !fieldValid('vo2-direct', true)) return false;
+  // Any entered BSA field must itself be valid (a bad BSA shouldn't yield a CO).
+  if (bsaMode === 'bsa') return fieldValid('bsa-direct', false);
+  return fieldValid('height', false) && fieldValid('weight', false);
+}
+
+// Pure math → result object. BSA is optional: we compute at a baseline BSA of 1
+// when none is given. In estimate mode BSA cancels out of CI (CI = k / (AVDO₂×10)),
+// so the CI is exact regardless; CO only becomes meaningful once a real BSA is known.
+function computeResults() {
+  const age      = ageGroup === 'elderly' ? 70 : 50;  // proxy — only picks 110 vs 125
+  const sao2     = parseFloat($('sao2').value);
+  const svo2     = parseFloat($('svo2').value);
+  const hgb      = parseFloat($('hgb').value);
+  const realBSA  = getBSA();          // null when the user hasn't entered it
+  const bsa      = realBSA || 1;      // baseline placeholder
+  const hasBSA   = !!realBSA;
+  const measured = vo2Mode === 'measured';
+
+  const vo2  = measured ? parseFloat($('vo2-direct').value) : calcVO2(age, bsa);
+  const fick = calcFick({ vo2, sao2, svo2, hgb });
+  if (!fick) return null;
+
+  const { co, cao2, cvo2, avdO2 } = fick;
+  const ci    = co / bsa;
+  const o2ext = ((cao2 - cvo2) / cao2) * 100;
+
+  // Display rules: CO is real when measured || hasBSA; CI when estimate || hasBSA.
+  const coShown = measured || hasBSA;
+  const ciShown = !measured || hasBSA;
+
+  return { co, ci, bsa, hasBSA, vo2, cao2, cvo2, avdO2, o2ext, coShown, ciShown };
+}
+
+// Explicit action (button / Enter): loud validation, alert on impossible input,
+// and navigate to the results (tab switch on mobile, scroll on desktop).
 function calculate() {
   if (!validate()) return;
-
-  const age  = ageGroup === 'elderly' ? 70 : 50;  // proxy value — only determines 110 vs 125
-  const sao2 = parseFloat($('sao2').value);
-  const svo2 = parseFloat($('svo2').value);
-  const hgb  = parseFloat($('hgb').value);
-  const bsa  = getBSA();
-
-  let vo2;
-  if (vo2Mode === 'estimate') {
-    vo2 = calcVO2(age, bsa);
-  } else {
-    vo2 = parseFloat($('vo2-direct').value);
-  }
-
-  const fick = calcFick({ vo2, sao2, svo2, hgb });
-  if (!fick) {
+  const r = computeResults();
+  if (!r) {
     alert('AV O₂ difference is zero or negative. Check SaO₂ and SvO₂ values.');
     return;
   }
-
-  const { co, cao2, cvo2, avdO2 } = fick;
-  const ci  = co / bsa;
-  const o2ext = ((cao2 - cvo2) / cao2) * 100;
-
-  displayResults({ co, ci, bsa, vo2, cao2, cvo2, avdO2, o2ext });
+  displayResults(r, { navigate: true });
 }
 
-function displayResults({ co, ci, bsa, vo2, cao2, cvo2, avdO2, o2ext }) {
+// Live auto-calculate as the user types. Silent: no styling, no alert, and it
+// never yanks the mobile view to the results tab — it just updates + flags ready.
+function maybeAutoCalc() {
+  if (!inputsReadyForAutoCalc()) return;
+  const r = computeResults();
+  if (!r) return;
+  displayResults(r, { navigate: false });
+}
+
+function displayResults(r, { navigate = true } = {}) {
+  const { co, ci, bsa, hasBSA, vo2, cao2, cvo2, avdO2, o2ext, coShown, ciShown } = r;
+  const DASH = '—';
+
   $('results-placeholder').style.display = 'none';
   $('results-content').style.display = '';
 
-  $('co-val').textContent = co.toFixed(2);
-  $('ci-val').textContent = ci.toFixed(2);
-  $('bsa-val').textContent = bsa.toFixed(2);
-  $('vo2-result-val').textContent = vo2.toFixed(1);
+  // Cardiac index is the hero; cardiac output is secondary and shows "—" until knowable.
+  $('ci-val').textContent = ciShown ? ci.toFixed(2) : DASH;
+  $('co-val').textContent = coShown ? co.toFixed(2) : DASH;
+  $('bsa-val').textContent = hasBSA ? bsa.toFixed(2) : DASH;
+  $('vo2-result-val').textContent = coShown ? vo2.toFixed(1) : DASH;   // VO₂ tracks CO availability
   $('cao2-val').textContent = cao2.toFixed(2);
   $('cvo2-val').textContent = cvo2.toFixed(2);
   $('avdo2-val').textContent = avdO2.toFixed(2);
   $('o2ext-val').textContent = o2ext.toFixed(1);
 
-  // CO range reference labels
-  $('co-range').textContent = 'Normal: 4–8 L/min';
+  // Range reference labels
   $('ci-range').textContent = 'Normal: 2.5–4 L/min/m²';
+  $('co-range').textContent = 'Normal: 4–8 L/min';
 
-  // Gauge: map CO 0-12 → 0-100%
-  const gaugeWidth = Math.min(Math.max((co / 12) * 100, 2), 100);
-  $('co-gauge').style.width = gaugeWidth + '%';
+  // Gauge reflects the hero (CI): map CI 0–6 → 0–100%.
+  const gauge = $('co-gauge');
+  if (gauge) gauge.style.width = ciShown ? Math.min(Math.max((ci / 6) * 100, 2), 100) + '%' : '0%';
 
   // Status
   const banner = $('status-banner');
-  const { cls, label, detail, interp } = interpret(co, ci, o2ext);
+  const { cls, label, detail, interp } = interpret(r);
   banner.className = 'status-banner ' + cls;
   $('status-label').textContent = label;
   $('status-detail').textContent = detail;
   $('interp-body').innerHTML = interp;
 
-  // Scroll results into view on mobile, or switch tab
+  // Navigation is reserved for the explicit action. Auto-calc (navigate:false)
+  // updates silently and, on mobile, just lights the "results ready" badge.
   if (isMobile()) {
-    switchTab('results-panel');
     $('tab-result-badge').style.display = '';
-  } else {
+    if (navigate) switchTab('results-panel');
+  } else if (navigate) {
     $('results-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
 
-function interpret(co, ci, o2ext) {
-  let cls, label, detail;
+function interpret(r) {
+  const { co, ci, o2ext, coShown, ciShown } = r;
+  let cls, label;
   const lines = [];
 
-  if (ci < 1.8) {
-    cls = 'critical'; label = 'Severe Low Output'; detail = `CO ${co.toFixed(2)} L/min · CI ${ci.toFixed(2)} L/min/m²`;
+  // Detail line leads with CI (the hero), CO second — either may be "—".
+  const ciStr = ciShown ? ci.toFixed(2) : '—';
+  const coStr = coShown ? co.toFixed(2) : '—';
+  const detail = `CI ${ciStr} L/min/m² · CO ${coStr} L/min`;
+
+  if (!ciShown) {
+    // Measured VO₂ mode without BSA: CO is known but the index can't be graded.
+    cls = 'normal'; label = 'Cardiac Output Only';
+    lines.push('<p>ℹ️ <strong>Cardiac index needs BSA.</strong> Enter BSA (or height &amp; weight) to grade the cardiac index; cardiac output is shown above.</p>');
+  } else if (ci < 1.8) {
+    cls = 'critical'; label = 'Severe Low Output';
     lines.push('<p>⚠️ <strong>Critically reduced cardiac index</strong> (&lt;1.8 L/min/m²) — consistent with cardiogenic shock. Urgent hemodynamic support may be required.</p>');
   } else if (ci < 2.5) {
-    cls = 'low'; label = 'Reduced Cardiac Output'; detail = `CO ${co.toFixed(2)} L/min · CI ${ci.toFixed(2)} L/min/m²`;
+    cls = 'low'; label = 'Reduced Cardiac Index';
     lines.push('<p>⚠️ <strong>Reduced cardiac index</strong> (1.8–2.5 L/min/m²) — consider heart failure, hypovolemia, or tamponade.</p>');
   } else if (ci <= 4.0) {
-    cls = 'normal'; label = 'Normal Cardiac Output'; detail = `CO ${co.toFixed(2)} L/min · CI ${ci.toFixed(2)} L/min/m²`;
+    cls = 'normal'; label = 'Normal Cardiac Index';
     lines.push('<p>✅ <strong>Cardiac index within normal range</strong> (2.5–4.0 L/min/m²).</p>');
   } else {
-    cls = 'high'; label = 'Elevated Cardiac Output'; detail = `CO ${co.toFixed(2)} L/min · CI ${ci.toFixed(2)} L/min/m²`;
+    cls = 'high'; label = 'Elevated Cardiac Index';
     lines.push('<p>ℹ️ <strong>Elevated cardiac index</strong> (&gt;4.0 L/min/m²) — consider high-output states: sepsis, anemia, thyrotoxicosis, AV fistula.</p>');
   }
 
+  // O₂ extraction is BSA-independent, so it's meaningful whenever we have results.
   if (o2ext > 35) lines.push('<p>🔴 <strong>High O₂ extraction</strong> (' + o2ext.toFixed(1) + '%) — tissues are extracting more oxygen to compensate for reduced delivery (DO₂/VO₂ mismatch).</p>');
   else if (o2ext < 20) lines.push('<p>🔵 <strong>Low O₂ extraction</strong> (' + o2ext.toFixed(1) + '%) — may indicate distributive shunting (e.g. sepsis) or high cardiac output.</p>');
 

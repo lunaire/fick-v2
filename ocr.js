@@ -685,6 +685,7 @@ function applyOCRValues() {
   if (vo2El && vo2El.value) $('vo2-measured-btn').click();
 
   updateVO2Preview();
+  maybeAutoCalc();   // scanned values auto-produce the cardiac index — no extra click
   closeOCR();
 
   // Flash updated fields
