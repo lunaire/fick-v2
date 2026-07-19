@@ -15,6 +15,7 @@ while ($listener.IsListening) {
     $ext = [System.IO.Path]::GetExtension($path).ToLower()
     if ($mime.ContainsKey($ext)) { $ctx.Response.ContentType = $mime[$ext] }
     $ctx.Response.Headers.Add("Cache-Control", "no-store")
+    $ctx.Response.ContentLength64 = $bytes.Length
     $ctx.Response.OutputStream.Write($bytes, 0, $bytes.Length)
   } else {
     $ctx.Response.StatusCode = 404
