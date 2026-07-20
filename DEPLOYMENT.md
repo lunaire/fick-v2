@@ -3,10 +3,12 @@
 This app lives in two places, kept in sync automatically:
 
 - **GitHub** — [`lunaire/fick-v2`](https://github.com/lunaire/fick-v2), the source of truth for the code.
-- **Live site** — https://aclinicaltool.com/apps/fick-cardiac-output-calculator/, served from a
-  Cloudflare Worker (`aclinicaltool`) backed by D1 + R2. That Worker hosts several unrelated tools
-  on the same multi-tool portfolio site (ICU List, CCU Procedure Cart List, CCU Cart Data) — only
-  this repo's files are this app's concern.
+- **Live site** — https://apps.aclinicaltool.com/fick-cardiac-output-calculator/, served from a
+  Cloudflare Worker (`aclinicaltool`, the ClinicalWorkspace platform) backed by D1 + R2. One Worker
+  serves two hosts: `apps.aclinicaltool.com` hosts the public app-kind tools (each at `/{slug}/`),
+  while `aclinicaltool.com` (apex) carries the browsing homepage, the APIs, and the admin upload
+  endpoint. The Worker hosts several unrelated tools on the same site — only this repo's files are
+  this app's concern.
 
 ## How the sync works
 
@@ -24,8 +26,10 @@ It:
 
 The Worker matches the upload to the existing catalog entry **by title**
 ("Fick Cardiac Output Calculator"), so this always updates the same tool in place — same slug,
-same public URL, no duplicates. The *served* app is still reached at the normal
-`aclinicaltool.com` URL either way; only the admin upload request itself uses `workers.dev`.
+same public URL, no duplicates. The upload must send `X-File-Topic` with a valid ClinicalWorkspace
+topic id (this app lives in `clinical-references`); `.zip` uploads are stored as app-kind tools
+automatically. The *served* app is still reached at the normal `apps.aclinicaltool.com` URL either
+way; only the admin upload request itself uses `workers.dev`.
 
 **Bottom line: pushing to `master` is enough.** No manual zip/upload step needed anymore.
 
@@ -66,7 +70,7 @@ curl -X PUT https://aclinicaltool.andrewchris.workers.dev/api/admin/upload \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "X-File-Name: fick-app.zip" \
   -H "X-File-Title: Fick Cardiac Output Calculator" \
-  -H "X-File-Category: app" \
+  -H "X-File-Topic: clinical-references" \
   -H "X-File-Type: Calculator" \
   -H "X-File-Tags: cardiac-output,hemodynamics,fick,clinical-calculator" \
   --data-binary @fick-app.zip

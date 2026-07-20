@@ -41,7 +41,7 @@ jobs:
             -H "X-File-Name: fick-app.zip" \
             -H "X-File-Title: Fick Cardiac Output Calculator" \
             -H "X-File-Description: Calculate cardiac output, cardiac index, and oxygen extraction using the Fick principle. Includes camera/AI-assisted extraction of lab values from reports or monitor photos." \
-            -H "X-File-Category: app" \
+            -H "X-File-Topic: clinical-references" \
             -H "X-File-Type: Calculator" \
             -H "X-File-Tags: cardiac-output,hemodynamics,fick,clinical-calculator" \
             -H "Content-Type: application/zip" \
