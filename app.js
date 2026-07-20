@@ -179,10 +179,24 @@ function showStartPopup() {
 }
 function beginEntry() {
   $('start-overlay')?.classList.remove('open');
+  // Every entry starts from a blank form — leftover values from a previous
+  // patient are an error waiting to happen.
+  clearInputs();
   // Focus the first field of the fast path — Hemoglobin. The three core values
   // (Hgb → SvO₂ → SaO₂) follow in DOM/tab order and auto-produce the cardiac index.
   $('hgb')?.focus();
 }
+
+// Clear all value fields (and their error state). Shared by reset(), beginEntry(),
+// and the pageshow guard — browsers restore form values on soft reload/bfcache
+// while the app's JS state starts fresh, leaving a stale, half-restored form.
+function clearInputs() {
+  ['age','weight','height','sao2','svo2','hgb','vo2-direct','bsa-direct'].forEach(id => {
+    const el = $(id);
+    if (el) { el.value = ''; el.classList.remove('error'); el.removeAttribute('title'); }
+  });
+}
+window.addEventListener('pageshow', clearInputs);
 
 // Accepted clinical input ranges (mirror the HTML min/max). Values outside
 // these are rejected so bad input (0, negatives, typos) can't produce
@@ -383,10 +397,7 @@ function interpret(r) {
 }
 
 function reset() {
-  ['age','weight','height','sao2','svo2','hgb','vo2-direct','bsa-direct'].forEach(id => {
-    const el = $(id);
-    if (el) { el.value = ''; el.classList.remove('error'); el.removeAttribute('title'); }
-  });
+  clearInputs();
   // Restore segmented controls to their defaults (young / BSA / estimate);
   // clicking re-runs each handler so module state + input visibility reset too.
   $('age-young-btn')?.click();
